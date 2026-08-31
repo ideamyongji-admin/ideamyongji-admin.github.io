@@ -207,7 +207,6 @@ h1, h2, h3, h4 { margin: 0; color: var(--ink-900); font-weight: 800; letter-spac
   content: ""; position: absolute; right: -8%; top: -40%; width: 420px; height: 420px;
   background: radial-gradient(circle, rgba(245,166,35,.3), transparent 65%);
 }
-.breadcrumb { display: flex; gap: 8px; align-items: center; font-size: 13px; color: rgba(255,255,255,.65); margin-bottom: 14px; position: relative; z-index: 1; }
 .page-hero h1 { color: #fff; font-size: clamp(26px, 3.4vw, 38px); position: relative; z-index: 1; }
 .page-hero p { margin-top: 12px; color: rgba(255,255,255,.78); max-width: 620px; position: relative; z-index: 1; }
 

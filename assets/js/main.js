@@ -22,6 +22,27 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
+  // 사업단소식 탭 전환 (공지사항 / 자료실)
+  const tabLinks = document.querySelectorAll('.tab-link');
+  const tabPanels = document.querySelectorAll('.tab-panel');
+  if (tabLinks.length && tabPanels.length) {
+    const panelNames = [...tabPanels].map((p) => p.dataset.panel);
+    const activateTab = (name) => {
+      tabLinks.forEach((l) => l.classList.toggle('active', l.dataset.tab === name));
+      tabPanels.forEach((p) => { p.hidden = p.dataset.panel !== name; });
+    };
+    const initial = location.hash.replace('#', '');
+    activateTab(panelNames.includes(initial) ? initial : panelNames[0]);
+
+    tabLinks.forEach((link) => {
+      link.addEventListener('click', (e) => {
+        e.preventDefault();
+        activateTab(link.dataset.tab);
+        history.replaceState(null, '', '#' + link.dataset.tab);
+      });
+    });
+  }
+
   // 스크롤 시 헤더 그림자
   const header = document.querySelector('.site-header');
   if (header) {
