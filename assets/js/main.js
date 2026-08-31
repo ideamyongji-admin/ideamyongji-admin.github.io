@@ -22,12 +22,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // 예산 진행률 바 애니메이션
-  document.querySelectorAll('.budget-bar > span').forEach((bar) => {
-    const pct = bar.getAttribute('data-pct');
-    requestAnimationFrame(() => { bar.style.width = pct + '%'; });
-  });
-
   // 스크롤 시 헤더 그림자
   const header = document.querySelector('.site-header');
   if (header) {

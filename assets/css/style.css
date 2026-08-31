@@ -285,15 +285,6 @@ table th { background: var(--bg-soft); font-weight: 700; color: var(--ink-700); 
 table tr:last-child td { border-bottom: none; }
 table td.center, table th.center { text-align: center; }
 
-/* ---------- 진행률 바 (예산) ---------- */
-.budget-row { display: grid; grid-template-columns: 260px 1fr 90px; align-items: center; gap: 18px; padding: 16px 0; border-bottom: 1px solid var(--border); }
-.budget-row:last-child { border-bottom: none; }
-.budget-row .name { font-weight: 700; font-size: 14.5px; color: var(--ink-900); }
-.budget-row .name small { display: block; font-weight: 500; font-size: 12.5px; color: var(--ink-500); margin-top: 2px; }
-.budget-bar { height: 10px; border-radius: 999px; background: var(--bg-soft-2); overflow: hidden; }
-.budget-bar > span { display: block; height: 100%; border-radius: 999px; background: var(--gradient-brand); }
-.budget-row .pct { text-align: right; font-weight: 800; color: var(--ink-900); }
-
 /* ---------- 부서/학과 카드 ---------- */
 .dept-card { display: flex; flex-direction: column; gap: 14px; }
 .dept-card .dept-head { display: flex; align-items: center; justify-content: space-between; }
@@ -386,7 +377,6 @@ table td.center, table th.center { text-align: center; }
   .people-grid { grid-template-columns: 1fr; }
   .footer-top { grid-template-columns: 1fr 1fr; }
   .timeline-item { grid-template-columns: 1fr; gap: 8px; }
-  .budget-row { grid-template-columns: 1fr; gap: 8px; }
   .news-item { grid-template-columns: 1fr; gap: 6px; }
   .cta-banner { padding: 36px; }
 }
