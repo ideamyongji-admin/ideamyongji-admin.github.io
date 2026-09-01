@@ -6,6 +6,7 @@ const REPO_NAME = 'ideamyongji-admin.github.io';
 const BRANCH = 'main';
 const API_BASE = `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}`;
 const TOKEN_KEY = 'idea_admin_gh_token';
+const UNLOCK_KEY = 'idea_admin_unlocked';
 
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => [...document.querySelectorAll(sel)];
@@ -13,6 +14,23 @@ const $$ = (sel) => [...document.querySelectorAll(sel)];
 function utf8ToB64(str) { return btoa(unescape(encodeURIComponent(str))); }
 function b64ToUtf8(b64) { return decodeURIComponent(escape(atob(b64))); }
 function getToken() { return localStorage.getItem(TOKEN_KEY) || ''; }
+
+async function sha256Hex(text) {
+  const bytes = new TextEncoder().encode(text);
+  const digest = await crypto.subtle.digest('SHA-256', bytes);
+  return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+// data/admin-config.json은 공개 파일이므로 토큰 없이 일반 fetch로 읽습니다.
+async function fetchAdminConfigPublic() {
+  try {
+    const res = await fetch('data/admin-config.json', { cache: 'no-store' });
+    if (!res.ok) return { passwordHash: null };
+    return await res.json();
+  } catch (e) {
+    return { passwordHash: null };
+  }
+}
 
 function showStatus(el, message, type) {
   el.textContent = message;
@@ -161,7 +179,7 @@ async function deleteArchive(index) {
 
 // ---------- 초기화 ----------
 
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
   const tokenInput = $('#gh-token');
   const tokenStatus = $('#token-status');
   const savedToken = getToken();
@@ -184,9 +202,6 @@ document.addEventListener('DOMContentLoaded', () => {
     tokenInput.value = '';
     tokenStatus.textContent = '토큰이 삭제되었습니다.';
   });
-
-  renderNoticeList();
-  renderArchiveList();
 
   const noticeForm = $('#notice-form');
   const noticeStatus = $('#notice-status');
@@ -272,4 +287,78 @@ document.addEventListener('DOMContentLoaded', () => {
       $$('.tab-panel').forEach((p) => { p.hidden = p.dataset.panel !== name; });
     });
   });
+
+  // ---------- 잠금 화면 ----------
+
+  function unlock() {
+    localStorage.setItem(UNLOCK_KEY, '1');
+    $('#lock-screen').hidden = true;
+    $('#admin-content').hidden = false;
+    $('#lock-now').hidden = false;
+    renderNoticeList();
+    renderArchiveList();
+  }
+
+  $('#lock-now').addEventListener('click', () => {
+    localStorage.removeItem(UNLOCK_KEY);
+    location.reload();
+  });
+
+  $('#login-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const statusEl = $('#login-status');
+    hideStatus(statusEl);
+    const pw = $('#login-password').value;
+    const btn = e.target.querySelector('button[type="submit"]');
+    btn.disabled = true; btn.textContent = '확인 중…';
+    try {
+      const config = await fetchAdminConfigPublic();
+      const hash = await sha256Hex(pw);
+      if (config.passwordHash && hash === config.passwordHash) {
+        unlock();
+      } else {
+        showStatus(statusEl, '비밀번호가 올바르지 않습니다.', 'error');
+      }
+    } finally {
+      btn.disabled = false; btn.textContent = '입장하기';
+    }
+  });
+
+  $('#setup-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const statusEl = $('#setup-status');
+    hideStatus(statusEl);
+    const token = $('#setup-token').value.trim();
+    const pw = $('#setup-password').value;
+    const pw2 = $('#setup-password-confirm').value;
+    if (pw.length < 4) { showStatus(statusEl, '비밀번호는 4자 이상 입력하세요.', 'error'); return; }
+    if (pw !== pw2) { showStatus(statusEl, '비밀번호가 일치하지 않습니다.', 'error'); return; }
+    const btn = e.target.querySelector('button[type="submit"]');
+    btn.disabled = true; btn.textContent = '설정 중…';
+    try {
+      localStorage.setItem(TOKEN_KEY, token);
+      const hash = await sha256Hex(pw);
+      const { sha } = await getJSONFile('data/admin-config.json');
+      await putJSONFile('data/admin-config.json', { passwordHash: hash }, sha, '관리자 비밀번호 설정');
+      if (tokenInput) tokenInput.value = token;
+      if (tokenStatus) tokenStatus.textContent = '토큰이 저장되어 있습니다.';
+      unlock();
+    } catch (err) {
+      showStatus(statusEl, err.message, 'error');
+    } finally {
+      btn.disabled = false; btn.textContent = '설정하고 시작하기';
+    }
+  });
+
+  if (localStorage.getItem(UNLOCK_KEY) === '1') {
+    unlock();
+  } else {
+    const config = await fetchAdminConfigPublic();
+    $('#lock-loading').hidden = true;
+    if (config && config.passwordHash) {
+      $('#lock-login').hidden = false;
+    } else {
+      $('#lock-setup').hidden = false;
+    }
+  }
 });
