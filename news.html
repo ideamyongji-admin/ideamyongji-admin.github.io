@@ -73,43 +73,20 @@
   <div class="container">
 
     <div class="tab-panel" data-panel="notice">
-      <!--
-        새 소식을 추가하려면 아래 <div class="news-item"> 블록을 복사해서
-        이 주석 바로 아래에 붙여넣고 날짜/카테고리/제목만 바꾸면 됩니다.
-        최신 소식이 맨 위로 오도록 순서대로 추가해 주세요.
-
-        배지(badge-cat) 예시: 공지 · 모집 · 프로그램 · 행사 · 사업단
-
-        <div class="news-item">
-          <span class="date">2026.00.00</span>
-          <div><span class="badge-cat">공지</span><h4>제목을 입력하세요</h4></div>
-          <span class="arrow">→</span>
-        </div>
-      -->
-      <div class="news-list">
-        <div class="news-item">
-          <span class="date">2026.09.01</span>
-          <div><span class="badge-cat">공지</span><h4>IDEA 사업단 홈페이지 오픈</h4></div>
-          <span class="arrow">→</span>
-        </div>
+      <div class="news-list" data-list="notice">
+        <p style="color: var(--ink-500); text-align: center; padding: 40px 0;">불러오는 중입니다…</p>
       </div>
+      <p data-empty="notice" hidden style="color: var(--ink-500); text-align: center; padding: 40px 0;">등록된 공지사항이 없습니다.</p>
     </div>
 
     <div class="tab-panel" data-panel="archive" hidden>
-      <!--
-        자료(첨부파일)를 추가하려면:
-        1) assets/files 폴더에 파일을 넣습니다 (예: assets/files/사업계획서.pdf)
-        2) 아래 <div class="news-item"> 블록을 복사해서 이 주석 바로 아래에 붙여넣고
-           날짜/제목/href 파일 경로를 바꾸면 됩니다. 최신 자료가 위로 오도록 추가해 주세요.
-
-        <div class="news-item">
-          <span class="date">2026.00.00</span>
-          <div><span class="badge-cat">자료</span><h4>자료 제목을 입력하세요</h4></div>
-          <a href="assets/files/파일명.pdf" class="arrow" target="_blank" rel="noopener">⬇</a>
-        </div>
-      -->
-      <p style="color: var(--ink-500); text-align: center; padding: 40px 0;">등록된 자료가 없습니다. 자료가 등록되면 이곳에 표시됩니다.</p>
+      <div class="news-list" data-list="archive"></div>
+      <p data-empty="archive" hidden style="color: var(--ink-500); text-align: center; padding: 40px 0;">등록된 자료가 없습니다. 자료가 등록되면 이곳에 표시됩니다.</p>
     </div>
+
+    <p style="margin-top: 32px; text-align: right;">
+      <a href="admin.html" style="font-size: 12.5px; color: var(--ink-300);">관리자 페이지 →</a>
+    </p>
 
   </div>
 </section>
@@ -156,5 +133,6 @@
 </footer>
 
 <script src="assets/js/main.js"></script>
+<script src="assets/js/news-loader.js"></script>
 </body>
 </html>
