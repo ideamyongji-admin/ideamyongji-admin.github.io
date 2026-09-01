@@ -126,9 +126,10 @@
     <div class="tab-panel" data-panel="notice">
       <div class="grid grid--2">
         <div class="card">
-          <h3 style="font-size:16px; margin-bottom:16px;">새 공지사항 등록</h3>
+          <h3 id="notice-form-title" style="font-size:16px; margin-bottom:16px;">새 공지사항 등록</h3>
           <div id="notice-status" class="status-msg"></div>
           <form id="notice-form">
+            <input type="hidden" id="notice-edit-index" value="">
             <div class="field">
               <label for="notice-date">날짜</label>
               <input type="date" id="notice-date" required>
@@ -154,12 +155,21 @@
             <div class="field">
               <label for="notice-image">이미지 첨부 <span class="hint">(선택, 최대 100MB)</span></label>
               <input type="file" id="notice-image" accept="image/*">
+              <div id="notice-existing-image" class="hint" style="margin-top:8px;" hidden>
+                <label style="display:flex; align-items:center; gap:6px; font-weight:500;">
+                  <input type="checkbox" id="notice-remove-image" style="width:auto;">
+                  기존에 첨부된 이미지를 삭제합니다 (새 이미지를 선택하면 자동으로 교체됩니다)
+                </label>
+              </div>
             </div>
-            <button type="submit" class="btn btn--primary">게시하기</button>
+            <div style="display:flex; gap:10px;">
+              <button type="submit" id="notice-submit-btn" class="btn btn--primary">게시하기</button>
+              <button type="button" id="notice-cancel-edit" class="btn btn--outline" hidden>수정 취소</button>
+            </div>
           </form>
         </div>
         <div class="card">
-          <h3 style="font-size:16px; margin-bottom:8px;">등록된 공지사항</h3>
+          <h3 id="notice-list-title" style="font-size:16px; margin-bottom:8px;">등록된 공지사항</h3>
           <div id="notice-admin-list"></div>
         </div>
       </div>

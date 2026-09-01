@@ -146,7 +146,10 @@ async function renderNoticeList() {
           <div class="title">[${item.category}] ${item.title}</div>
           <div class="meta">${item.date}${item.content ? ' · 내용 있음' : ' · 내용 없음(제목만 표시)'}${item.image ? ' · 이미지 첨부됨' : ''}</div>
         </div>
-        <button class="btn btn--danger btn--sm" data-delete-notice="${i}">삭제</button>
+        <div style="display:flex; gap:8px; flex-shrink:0;">
+          <button class="btn btn--outline btn--sm" data-edit-notice="${i}">수정</button>
+          <button class="btn btn--danger btn--sm" data-delete-notice="${i}">삭제</button>
+        </div>
       </div>
     `).join('');
   } catch (e) {
@@ -162,6 +165,36 @@ async function addNotice(date, category, title, contentText, imageFile) {
   const { sha, content } = await getJSONFile('data/news.json');
   content.unshift({ date, category, title, content: contentText || '', image: imagePath });
   await putJSONFile('data/news.json', content, sha, `공지사항 등록: ${title}`);
+}
+
+async function getNotice(index) {
+  const { content } = await getJSONFile('data/news.json');
+  return content[index];
+}
+
+async function updateNotice(index, date, category, title, contentText, imageFile, removeImage) {
+  const { sha, content } = await getJSONFile('data/news.json');
+  const existing = content[index] || {};
+  let imagePath = existing.image || '';
+
+  if (imageFile) {
+    imagePath = await uploadFileAndGetPath(imageFile, 'assets/images/news', `공지사항 이미지 교체: ${title}`);
+    if (existing.image) {
+      try {
+        const fileData = await gh(`/contents/${existing.image}?ref=${BRANCH}`);
+        if (fileData) await deleteFile(existing.image, fileData.sha, `공지사항 기존 이미지 삭제: ${title}`);
+      } catch (e) { /* 무시 */ }
+    }
+  } else if (removeImage && existing.image) {
+    try {
+      const fileData = await gh(`/contents/${existing.image}?ref=${BRANCH}`);
+      if (fileData) await deleteFile(existing.image, fileData.sha, `공지사항 이미지 삭제: ${title}`);
+    } catch (e) { /* 무시 */ }
+    imagePath = '';
+  }
+
+  content[index] = { date, category, title, content: contentText || '', image: imagePath };
+  await putJSONFile('data/news.json', content, sha, `공지사항 수정: ${title}`);
 }
 
 async function deleteNotice(index) {
@@ -248,6 +281,51 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   const noticeForm = $('#notice-form');
   const noticeStatus = $('#notice-status');
+  const noticeFormTitle = $('#notice-form-title');
+  const noticeSubmitBtn = $('#notice-submit-btn');
+  const noticeCancelBtn = $('#notice-cancel-edit');
+  const noticeExistingImage = $('#notice-existing-image');
+  const noticeRemoveImage = $('#notice-remove-image');
+  const noticeEditIndex = $('#notice-edit-index');
+
+  function resetNoticeFormToAddMode() {
+    noticeForm.reset();
+    noticeEditIndex.value = '';
+    noticeFormTitle.textContent = '새 공지사항 등록';
+    noticeSubmitBtn.textContent = '게시하기';
+    noticeSubmitBtn.disabled = false;
+    noticeCancelBtn.hidden = true;
+    noticeExistingImage.hidden = true;
+    noticeRemoveImage.checked = false;
+  }
+
+  function dotDateToInputValue(dateStr) {
+    const parts = (dateStr || '').split('.').map((p) => p.trim()).filter(Boolean);
+    if (parts.length !== 3) return '';
+    const [y, m, d] = parts;
+    return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+  }
+
+  async function enterNoticeEditMode(index) {
+    hideStatus(noticeStatus);
+    const item = await getNotice(index);
+    if (!item) return;
+    noticeEditIndex.value = String(index);
+    $('#notice-date').value = dotDateToInputValue(item.date);
+    $('#notice-category').value = item.category;
+    $('#notice-title').value = item.title;
+    $('#notice-content').value = item.content || '';
+    $('#notice-image').value = '';
+    noticeRemoveImage.checked = false;
+    noticeExistingImage.hidden = !item.image;
+    noticeFormTitle.textContent = '공지사항 수정';
+    noticeSubmitBtn.textContent = '수정하기';
+    noticeCancelBtn.hidden = false;
+    noticeForm.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  noticeCancelBtn.addEventListener('click', () => resetNoticeFormToAddMode());
+
   noticeForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     hideStatus(noticeStatus);
@@ -256,32 +334,44 @@ document.addEventListener('DOMContentLoaded', async () => {
     const title = $('#notice-title').value.trim();
     const contentText = $('#notice-content').value.trim();
     const imageFile = $('#notice-image').files[0] || null;
+    const editIndex = noticeEditIndex.value;
+    const isEdit = editIndex !== '';
     if (!date || !title) { showStatus(noticeStatus, '날짜와 제목을 입력하세요.', 'error'); return; }
     if (imageFile && imageFile.size > MAX_UPLOAD_BYTES) {
       showStatus(noticeStatus, `이미지 용량이 너무 큽니다. GitHub API 제한으로 ${Math.floor(MAX_UPLOAD_BYTES / 1024 / 1024)}MB 이하만 첨부할 수 있습니다.`, 'error');
       return;
     }
-    const btn = noticeForm.querySelector('button[type="submit"]');
-    btn.disabled = true; btn.textContent = imageFile ? '이미지 업로드 중…' : '게시 중…';
+    const btn = noticeSubmitBtn;
+    btn.disabled = true; btn.textContent = imageFile ? '이미지 업로드 중…' : (isEdit ? '수정 중…' : '게시 중…');
     try {
-      await addNotice(date, category, title, contentText, imageFile);
-      showStatus(noticeStatus, '공지사항이 등록되었습니다. 30~60초 후 사이트에 반영됩니다.', 'success');
-      noticeForm.reset();
+      if (isEdit) {
+        await updateNotice(Number(editIndex), date, category, title, contentText, imageFile, noticeRemoveImage.checked);
+        showStatus(noticeStatus, '공지사항이 수정되었습니다. 30~60초 후 사이트에 반영됩니다.', 'success');
+      } else {
+        await addNotice(date, category, title, contentText, imageFile);
+        showStatus(noticeStatus, '공지사항이 등록되었습니다. 30~60초 후 사이트에 반영됩니다.', 'success');
+      }
+      resetNoticeFormToAddMode();
       await renderNoticeList();
     } catch (err) {
       showStatus(noticeStatus, err.message, 'error');
-    } finally {
-      btn.disabled = false; btn.textContent = '게시하기';
+      btn.disabled = false; btn.textContent = isEdit ? '수정하기' : '게시하기';
     }
   });
 
   $('#notice-admin-list').addEventListener('click', async (e) => {
+    const editBtn = e.target.closest('[data-edit-notice]');
+    if (editBtn) {
+      await enterNoticeEditMode(Number(editBtn.dataset.editNotice));
+      return;
+    }
     const btn = e.target.closest('[data-delete-notice]');
     if (!btn) return;
     if (!confirm('이 공지사항을 삭제할까요?')) return;
     btn.disabled = true;
     try {
       await deleteNotice(Number(btn.dataset.deleteNotice));
+      if (noticeEditIndex.value === String(btn.dataset.deleteNotice)) resetNoticeFormToAddMode();
       await renderNoticeList();
     } catch (err) {
       alert(err.message);
