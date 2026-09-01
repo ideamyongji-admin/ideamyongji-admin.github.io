@@ -49,6 +49,24 @@ body {
   background: var(--bg);
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
+  word-break: keep-all;
+  overflow-wrap: break-word;
+}
+
+/* 본문 문단(카드 설명, 인용문 등 여러 줄 텍스트): 양쪽 정렬로 들쭉날쭉함 방지
+   히어로/페이지 소개문·섹션 부제목처럼 짧은 1~2줄 태그라인은 단어 수가 적어
+   양쪽 정렬 시 어절 사이 간격이 과도하게 벌어지므로 제외 */
+.card p,
+.quote-card,
+.news-body p,
+.idea-letter p,
+.roadmap-step p,
+.timeline-item p,
+.dept-card p,
+.footer-brand p,
+.footer-col li {
+  text-align: justify;
+  text-justify: inter-word;
 }
 
 img { max-width: 100%; display: block; }
