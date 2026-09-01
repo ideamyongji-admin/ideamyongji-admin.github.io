@@ -131,6 +131,12 @@ async function uploadFileAndGetPath(file, folder, message) {
 
 // ---------- 공지사항 ----------
 
+// "YYYY.MM.DD" 형식의 날짜 문자열을 비교 가능한 숫자로 변환 (0 패딩 여부와 무관하게 정확히 비교)
+function dateSortValue(dateStr) {
+  const [y = 0, m = 0, d = 0] = String(dateStr || '').split('.').map(Number);
+  return y * 10000 + m * 100 + d;
+}
+
 async function renderNoticeList() {
   const listEl = $('#notice-admin-list');
   listEl.innerHTML = '<p style="color:var(--ink-500);">불러오는 중…</p>';
@@ -140,7 +146,12 @@ async function renderNoticeList() {
       listEl.innerHTML = '<p style="color:var(--ink-500);">등록된 공지사항이 없습니다.</p>';
       return;
     }
-    listEl.innerHTML = content.map((item, i) => `
+    // 화면에는 최신 날짜순으로 보여주되, 수정·삭제 버튼은 실제 저장된 배열의
+    // 원래 인덱스(i)를 그대로 참조해 정렬 순서와 무관하게 올바른 항목을 가리키게 합니다.
+    const sorted = content
+      .map((item, i) => ({ item, i }))
+      .sort((a, b) => dateSortValue(b.item.date) - dateSortValue(a.item.date));
+    listEl.innerHTML = sorted.map(({ item, i }) => `
       <div class="admin-row">
         <div>
           <div class="title">[${item.category}] ${item.title}</div>

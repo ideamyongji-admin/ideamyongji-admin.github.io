@@ -55,6 +55,16 @@ async function loadJSON(path) {
   return res.json();
 }
 
+// "YYYY.MM.DD" 형식의 날짜 문자열을 비교 가능한 숫자로 변환 (0 패딩 여부와 무관하게 정확히 비교)
+function dateSortValue(dateStr) {
+  const [y = 0, m = 0, d = 0] = String(dateStr || '').split('.').map(Number);
+  return y * 10000 + m * 100 + d;
+}
+
+function sortByDateDesc(items) {
+  return [...items].sort((a, b) => dateSortValue(b.date) - dateSortValue(a.date));
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
   const noticeList = document.querySelector('[data-list="notice"]');
   const archiveList = document.querySelector('[data-list="archive"]');
@@ -64,7 +74,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   if (previewList) {
     try {
-      const items = await loadJSON('data/news.json');
+      const items = sortByDateDesc(await loadJSON('data/news.json'));
       previewList.innerHTML = items.slice(0, 3).map(newsItemHTML).join('') ||
         '<p style="color: var(--ink-500); text-align: center; padding: 24px 0;">등록된 소식이 없습니다.</p>';
     } catch (e) {
@@ -74,7 +84,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   if (noticeList) {
     try {
-      const items = await loadJSON('data/news.json');
+      const items = sortByDateDesc(await loadJSON('data/news.json'));
       noticeList.innerHTML = items.length ? items.map(newsItemHTML).join('') : '';
       if (noticeEmpty) noticeEmpty.hidden = items.length > 0;
     } catch (e) {
