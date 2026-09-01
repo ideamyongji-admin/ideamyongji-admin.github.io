@@ -100,7 +100,6 @@ h1, h2, h3, h4 { margin: 0; color: var(--ink-900); font-weight: 800; letter-spac
 .section--tight { padding: 64px 0; }
 
 .section-head { max-width: 720px; margin: 0 0 56px; }
-.section-head.center { margin-left: auto; margin-right: auto; text-align: center; }
 .section-head h2 { font-size: clamp(26px, 3vw, 36px); line-height: 1.3; }
 .section-head p { margin-top: 14px; font-size: 16px; color: var(--ink-500); }
 
@@ -448,4 +447,20 @@ button.news-item.is-button[aria-expanded="true"] .arrow { transform: rotate(90de
 @media (max-width: 600px) {
   .footer-top { grid-template-columns: 1fr; }
   .section { padding: 64px 0; }
+}
+
+/* 좁은 화면에서는 한 줄에 들어가는 어절 수가 적어 양쪽 정렬 시 단어 사이 간격이
+   과도하게 벌어지므로, 이 구간에서는 양쪽 정렬을 끄고 왼쪽 정렬로 전환합니다. */
+@media (max-width: 700px) {
+  .card p,
+  .quote-card,
+  .news-body p,
+  .idea-letter p,
+  .roadmap-step p,
+  .timeline-item p,
+  .dept-card p,
+  .footer-brand p,
+  .footer-col li {
+    text-align: left;
+  }
 }
