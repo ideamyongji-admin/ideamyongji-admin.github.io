@@ -69,12 +69,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   if (noticeList) {
     try {
       const items = await loadJSON('data/news.json');
-      if (items.length) {
-        noticeList.innerHTML = items.map(newsItemHTML).join('');
-        if (noticeEmpty) noticeEmpty.hidden = true;
-      } else if (noticeEmpty) {
-        noticeEmpty.hidden = false;
-      }
+      noticeList.innerHTML = items.length ? items.map(newsItemHTML).join('') : '';
+      if (noticeEmpty) noticeEmpty.hidden = items.length > 0;
     } catch (e) {
       noticeList.innerHTML = '<p style="color: var(--ink-500); text-align: center; padding: 40px 0;">공지사항을 불러오지 못했습니다.</p>';
     }
