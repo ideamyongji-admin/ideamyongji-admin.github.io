@@ -71,9 +71,35 @@ async function putJSONFile(path, content, sha, message) {
   return gh(`/contents/${path}`, { method: 'PUT', body: JSON.stringify(body) });
 }
 
-async function putBinaryFile(path, base64Content, message) {
-  const body = { message, branch: BRANCH, content: base64Content };
-  return gh(`/contents/${path}`, { method: 'PUT', body: JSON.stringify(body) });
+// 큰 파일 업로드: GitHub Contents API(PUT /contents)는 1MB 제한이 있어,
+// Git Data API(blob → tree → commit → ref 갱신)를 직접 조합해 최대 100MB까지 업로드합니다.
+async function uploadLargeFile(path, base64Content, message) {
+  const ref = await gh(`/git/refs/heads/${BRANCH}`);
+  const baseCommitSha = ref.object.sha;
+  const baseCommit = await gh(`/git/commits/${baseCommitSha}`);
+
+  const blob = await gh('/git/blobs', {
+    method: 'POST',
+    body: JSON.stringify({ content: base64Content, encoding: 'base64' }),
+  });
+
+  const tree = await gh('/git/trees', {
+    method: 'POST',
+    body: JSON.stringify({
+      base_tree: baseCommit.tree.sha,
+      tree: [{ path, mode: '100644', type: 'blob', sha: blob.sha }],
+    }),
+  });
+
+  const commit = await gh('/git/commits', {
+    method: 'POST',
+    body: JSON.stringify({ message, tree: tree.sha, parents: [baseCommitSha] }),
+  });
+
+  await gh(`/git/refs/heads/${BRANCH}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ sha: commit.sha }),
+  });
 }
 
 async function deleteFile(path, sha, message) {
@@ -93,6 +119,16 @@ function sanitizeFileName(name) {
   return name.replace(/\s+/g, '_').replace(/[^\w.\-가-힣]/g, '');
 }
 
+const MAX_UPLOAD_BYTES = 100 * 1024 * 1024; // GitHub Git Data API(blob)의 실질 상한
+
+async function uploadFileAndGetPath(file, folder, message) {
+  const safeName = sanitizeFileName(file.name);
+  const path = `${folder}/${Date.now()}_${safeName}`;
+  const base64 = await readFileAsBase64(file);
+  await uploadLargeFile(path, base64, message);
+  return path;
+}
+
 // ---------- 공지사항 ----------
 
 async function renderNoticeList() {
@@ -108,7 +144,7 @@ async function renderNoticeList() {
       <div class="admin-row">
         <div>
           <div class="title">[${item.category}] ${item.title}</div>
-          <div class="meta">${item.date}${item.content ? ' · 내용 있음' : ' · 내용 없음(제목만 표시)'}</div>
+          <div class="meta">${item.date}${item.content ? ' · 내용 있음' : ' · 내용 없음(제목만 표시)'}${item.image ? ' · 이미지 첨부됨' : ''}</div>
         </div>
         <button class="btn btn--danger btn--sm" data-delete-notice="${i}">삭제</button>
       </div>
@@ -118,9 +154,13 @@ async function renderNoticeList() {
   }
 }
 
-async function addNotice(date, category, title, contentText) {
+async function addNotice(date, category, title, contentText, imageFile) {
+  let imagePath = '';
+  if (imageFile) {
+    imagePath = await uploadFileAndGetPath(imageFile, 'assets/images/news', `공지사항 이미지 업로드: ${title}`);
+  }
   const { sha, content } = await getJSONFile('data/news.json');
-  content.unshift({ date, category, title, content: contentText || '' });
+  content.unshift({ date, category, title, content: contentText || '', image: imagePath });
   await putJSONFile('data/news.json', content, sha, `공지사항 등록: ${title}`);
 }
 
@@ -128,6 +168,12 @@ async function deleteNotice(index) {
   const { sha, content } = await getJSONFile('data/news.json');
   const removed = content.splice(index, 1)[0];
   await putJSONFile('data/news.json', content, sha, `공지사항 삭제: ${removed ? removed.title : ''}`);
+  if (removed && removed.image) {
+    try {
+      const fileData = await gh(`/contents/${removed.image}?ref=${BRANCH}`);
+      if (fileData) await deleteFile(removed.image, fileData.sha, `공지사항 이미지 삭제: ${removed.title}`);
+    } catch (e) { /* 이미지 삭제 실패는 무시 (목록에서는 이미 제거됨) */ }
+  }
 }
 
 // ---------- 자료실 ----------
@@ -156,10 +202,7 @@ async function renderArchiveList() {
 }
 
 async function addArchive(date, title, file) {
-  const safeName = sanitizeFileName(file.name);
-  const path = `assets/files/${Date.now()}_${safeName}`;
-  const base64 = await readFileAsBase64(file);
-  await putBinaryFile(path, base64, `자료 업로드: ${title}`);
+  const path = await uploadFileAndGetPath(file, 'assets/files', `자료 업로드: ${title}`);
   const { sha, content } = await getJSONFile('data/archive.json');
   content.unshift({ date, title, fileName: file.name, path });
   await putJSONFile('data/archive.json', content, sha, `자료실 등록: ${title}`);
@@ -212,11 +255,16 @@ document.addEventListener('DOMContentLoaded', async () => {
     const category = $('#notice-category').value;
     const title = $('#notice-title').value.trim();
     const contentText = $('#notice-content').value.trim();
+    const imageFile = $('#notice-image').files[0] || null;
     if (!date || !title) { showStatus(noticeStatus, '날짜와 제목을 입력하세요.', 'error'); return; }
+    if (imageFile && imageFile.size > MAX_UPLOAD_BYTES) {
+      showStatus(noticeStatus, `이미지 용량이 너무 큽니다. GitHub API 제한으로 ${Math.floor(MAX_UPLOAD_BYTES / 1024 / 1024)}MB 이하만 첨부할 수 있습니다.`, 'error');
+      return;
+    }
     const btn = noticeForm.querySelector('button[type="submit"]');
-    btn.disabled = true; btn.textContent = '게시 중…';
+    btn.disabled = true; btn.textContent = imageFile ? '이미지 업로드 중…' : '게시 중…';
     try {
-      await addNotice(date, category, title, contentText);
+      await addNotice(date, category, title, contentText, imageFile);
       showStatus(noticeStatus, '공지사항이 등록되었습니다. 30~60초 후 사이트에 반영됩니다.', 'success');
       noticeForm.reset();
       await renderNoticeList();
@@ -250,7 +298,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     const title = $('#archive-title').value.trim();
     const file = $('#archive-file').files[0];
     if (!date || !title || !file) { showStatus(archiveStatus, '날짜, 제목, 파일을 모두 선택하세요.', 'error'); return; }
-    if (file.size > 1024 * 1024) { showStatus(archiveStatus, 'GitHub API 제한으로 1MB 이하 파일만 업로드할 수 있습니다.', 'error'); return; }
+    if (file.size > MAX_UPLOAD_BYTES) {
+      showStatus(archiveStatus, `파일 용량이 너무 큽니다. GitHub API 제한으로 ${Math.floor(MAX_UPLOAD_BYTES / 1024 / 1024)}MB 이하만 업로드할 수 있습니다.`, 'error');
+      return;
+    }
     const btn = archiveForm.querySelector('button[type="submit"]');
     btn.disabled = true; btn.textContent = '업로드 중…';
     try {

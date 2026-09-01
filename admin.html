@@ -151,6 +151,10 @@
               <label for="notice-content">내용 <span class="hint">(선택, 비워두면 제목만 표시됩니다)</span></label>
               <textarea id="notice-content" rows="6" placeholder="공지 내용을 입력하세요. 빈 줄로 문단을 구분할 수 있습니다."></textarea>
             </div>
+            <div class="field">
+              <label for="notice-image">이미지 첨부 <span class="hint">(선택, 최대 100MB)</span></label>
+              <input type="file" id="notice-image" accept="image/*">
+            </div>
             <button type="submit" class="btn btn--primary">게시하기</button>
           </form>
         </div>
@@ -165,7 +169,7 @@
       <div class="grid grid--2">
         <div class="card">
           <h3 style="font-size:16px; margin-bottom:16px;">새 자료 등록</h3>
-          <p class="field hint" style="margin-top:-8px; margin-bottom:16px;">GitHub API 제한으로 파일 하나당 1MB 이하만 업로드할 수 있습니다.</p>
+          <p class="field hint" style="margin-top:-8px; margin-bottom:16px;">GitHub API 제한으로 파일 하나당 최대 100MB까지 업로드할 수 있습니다.</p>
           <div id="archive-status" class="status-msg"></div>
           <form id="archive-form">
             <div class="field">
@@ -177,7 +181,7 @@
               <input type="text" id="archive-title" placeholder="자료 제목을 입력하세요" required>
             </div>
             <div class="field">
-              <label for="archive-file">파일 (1MB 이하)</label>
+              <label for="archive-file">파일 (최대 100MB)</label>
               <input type="file" id="archive-file" required>
             </div>
             <button type="submit" class="btn btn--primary">게시하기</button>

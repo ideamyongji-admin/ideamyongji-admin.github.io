@@ -15,12 +15,18 @@ function formatContent(content) {
 }
 
 function newsItemHTML(item, index) {
-  const hasContent = !!(item.content && item.content.trim());
+  const hasText = !!(item.content && item.content.trim());
+  const hasImage = !!item.image;
+  const hasContent = hasText || hasImage;
   const bodyId = `news-body-${index}`;
   const tag = hasContent ? 'button' : 'div';
   const attrs = hasContent
     ? `type="button" aria-expanded="false" aria-controls="${bodyId}" data-toggle="notice"`
     : '';
+  const imageHtml = hasImage
+    ? `<img src="${escapeHtml(item.image)}" alt="${escapeHtml(item.title)}" loading="lazy">`
+    : '';
+  const textHtml = hasText ? formatContent(item.content) : '';
   return `
     <div class="news-entry">
       <${tag} class="news-item${hasContent ? ' is-button' : ''}" ${attrs}>
@@ -28,7 +34,7 @@ function newsItemHTML(item, index) {
         <div><span class="badge-cat">${escapeHtml(item.category)}</span><h4>${escapeHtml(item.title)}</h4></div>
         <span class="arrow">${hasContent ? '→' : ''}</span>
       </${tag}>
-      ${hasContent ? `<div class="news-body" id="${bodyId}" hidden>${formatContent(item.content)}</div>` : ''}
+      ${hasContent ? `<div class="news-body" id="${bodyId}" hidden>${imageHtml}${textHtml}</div>` : ''}
     </div>`;
 }
 

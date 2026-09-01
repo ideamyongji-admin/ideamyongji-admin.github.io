@@ -342,6 +342,7 @@ button.news-item.is-button[aria-expanded="true"] .arrow { transform: rotate(90de
 }
 .news-body p { margin: 0 0 12px; }
 .news-body p:last-child { margin-bottom: 0; }
+.news-body img { width: 100%; height: auto; border-radius: var(--radius-md); margin-bottom: 20px; border: 1px solid var(--border); }
 
 /* ---------- CTA 배너 ---------- */
 .cta-banner {
