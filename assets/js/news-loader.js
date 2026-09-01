@@ -1,21 +1,45 @@
 // 사업단소식(공지사항/자료실) 목록을 data/news.json, data/archive.json에서 불러와 렌더링합니다.
 // 게시글 등록/삭제는 admin.html에서 GitHub API를 통해 두 JSON 파일을 직접 수정합니다.
 
-function newsItemHTML(item) {
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str == null ? '' : String(str);
+  return div.innerHTML;
+}
+
+function formatContent(content) {
+  return content
+    .split(/\n{2,}/)
+    .map((para) => `<p>${escapeHtml(para).replace(/\n/g, '<br>')}</p>`)
+    .join('');
+}
+
+function newsItemHTML(item, index) {
+  const hasContent = !!(item.content && item.content.trim());
+  const bodyId = `news-body-${index}`;
+  const tag = hasContent ? 'button' : 'div';
+  const attrs = hasContent
+    ? `type="button" aria-expanded="false" aria-controls="${bodyId}" data-toggle="notice"`
+    : '';
   return `
-    <div class="news-item">
-      <span class="date">${item.date}</span>
-      <div><span class="badge-cat">${item.category}</span><h4>${item.title}</h4></div>
-      <span class="arrow">→</span>
+    <div class="news-entry">
+      <${tag} class="news-item${hasContent ? ' is-button' : ''}" ${attrs}>
+        <span class="date">${escapeHtml(item.date)}</span>
+        <div><span class="badge-cat">${escapeHtml(item.category)}</span><h4>${escapeHtml(item.title)}</h4></div>
+        <span class="arrow">${hasContent ? '→' : ''}</span>
+      </${tag}>
+      ${hasContent ? `<div class="news-body" id="${bodyId}" hidden>${formatContent(item.content)}</div>` : ''}
     </div>`;
 }
 
 function archiveItemHTML(item) {
   return `
-    <div class="news-item">
-      <span class="date">${item.date}</span>
-      <div><span class="badge-cat">자료</span><h4>${item.title}</h4></div>
-      <a href="${item.path}" class="arrow" target="_blank" rel="noopener" aria-label="다운로드">⬇</a>
+    <div class="news-entry">
+      <a href="${item.path}" class="news-item" target="_blank" rel="noopener">
+        <span class="date">${escapeHtml(item.date)}</span>
+        <div><span class="badge-cat">자료</span><h4>${escapeHtml(item.title)}</h4></div>
+        <span class="arrow" aria-label="다운로드">⬇</span>
+      </a>
     </div>`;
 }
 
@@ -69,4 +93,14 @@ document.addEventListener('DOMContentLoaded', async () => {
       archiveList.innerHTML = '<p style="color: var(--ink-500); text-align: center; padding: 40px 0;">자료실을 불러오지 못했습니다.</p>';
     }
   }
+});
+
+// 공지사항 제목 클릭 시 내용 펼치기/접기 (동적으로 삽입된 요소에도 적용되도록 이벤트 위임 사용)
+document.addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-toggle="notice"]');
+  if (!btn) return;
+  const body = document.getElementById(btn.getAttribute('aria-controls'));
+  const expanded = btn.getAttribute('aria-expanded') === 'true';
+  btn.setAttribute('aria-expanded', String(!expanded));
+  if (body) body.hidden = expanded;
 });

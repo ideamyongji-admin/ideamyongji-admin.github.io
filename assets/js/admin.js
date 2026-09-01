@@ -90,7 +90,7 @@ async function renderNoticeList() {
       <div class="admin-row">
         <div>
           <div class="title">[${item.category}] ${item.title}</div>
-          <div class="meta">${item.date}</div>
+          <div class="meta">${item.date}${item.content ? ' · 내용 있음' : ' · 내용 없음(제목만 표시)'}</div>
         </div>
         <button class="btn btn--danger btn--sm" data-delete-notice="${i}">삭제</button>
       </div>
@@ -100,9 +100,9 @@ async function renderNoticeList() {
   }
 }
 
-async function addNotice(date, category, title) {
+async function addNotice(date, category, title, contentText) {
   const { sha, content } = await getJSONFile('data/news.json');
-  content.unshift({ date, category, title });
+  content.unshift({ date, category, title, content: contentText || '' });
   await putJSONFile('data/news.json', content, sha, `공지사항 등록: ${title}`);
 }
 
@@ -196,11 +196,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const date = $('#notice-date').value.replace(/-/g, '.');
     const category = $('#notice-category').value;
     const title = $('#notice-title').value.trim();
+    const contentText = $('#notice-content').value.trim();
     if (!date || !title) { showStatus(noticeStatus, '날짜와 제목을 입력하세요.', 'error'); return; }
     const btn = noticeForm.querySelector('button[type="submit"]');
     btn.disabled = true; btn.textContent = '게시 중…';
     try {
-      await addNotice(date, category, title);
+      await addNotice(date, category, title, contentText);
       showStatus(noticeStatus, '공지사항이 등록되었습니다. 30~60초 후 사이트에 반영됩니다.', 'success');
       noticeForm.reset();
       await renderNoticeList();
