@@ -29,6 +29,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js";
 
 const DAILY_LIMIT_HOURS = 2;
+const WINDOW_LIMIT_HOURS = 6; // 예약 가능한 2주(14일) 구간 내 1인당 누적 한도
 
 const OPEN_HOUR = 9;
 const CLOSE_HOUR = 21; // 마지막 슬롯은 20:00~21:00
@@ -306,7 +307,23 @@ function BookingModule() {
     });
   }
 
+  // 예약 가능한 2주(오늘~13일 후) 구간 안에서 내가 이미 예약한 시간 합계.
+  // myReservationsById는 실시간 구독으로 항상 최신 상태이므로, 지난 날짜는 자연히
+  // 범위에서 빠지고(=롤링 윈도우) 매일 자동으로 한도가 갱신됩니다.
+  function windowHoursUsed() {
+    const today = localDateStr(new Date());
+    const windowEnd = localDateStr(
+      new Date(new Date().setDate(new Date().getDate() + BOOKING_WINDOW_DAYS))
+    );
+    return Object.values(myReservationsById).filter((r) => r.date >= today && r.date <= windowEnd).length;
+  }
+
   async function bookSlot(tableId, startTime, endTime, btnEl) {
+    if (windowHoursUsed() >= WINDOW_LIMIT_HOURS) {
+      showToast(`예약 가능한 2주 내에는 최대 ${WINDOW_LIMIT_HOURS}시간까지만 예약할 수 있습니다.`, "error");
+      return;
+    }
+
     const reservationId = `${tableId}_${currentDate}_${startTime}`;
     const usageId = `${ctx.uid}_${currentDate}`;
     const usageRef = doc(db, "dailyUsage", usageId);
