@@ -66,15 +66,16 @@ function galleryItemImages(item) {
 
 function galleryItemHTML(item, index) {
   const images = galleryItemImages(item);
-  const countBadge = images.length > 1 ? `<span class="gallery-count">🖼 ${images.length}</span>` : '';
+  const hasMultiple = images.length > 1;
   return `
-    <button type="button" class="gallery-item" data-gallery-index="${index}">
-      <img src="${escapeHtml(images[0] || '')}" alt="${escapeHtml(item.caption || item.date)}" loading="lazy">
-      ${countBadge}
-      <div class="gallery-caption">
-        <span class="date">${escapeHtml(item.date)}</span>
-        ${item.caption ? `<p>${escapeHtml(item.caption)}</p>` : ''}
-      </div>
+    <button type="button" class="gallery-item${hasMultiple ? ' has-multiple' : ''}" data-gallery-index="${index}">
+      <span class="gallery-media">
+        <img src="${escapeHtml(images[0] || '')}" alt="${escapeHtml(item.caption || item.date)}" loading="lazy">
+        <span class="gallery-overlay">
+          <span class="date">${escapeHtml(item.date)}</span>
+          ${item.caption ? `<span class="caption">${escapeHtml(item.caption)}</span>` : ''}
+        </span>
+      </span>
     </button>`;
 }
 

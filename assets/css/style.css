@@ -377,26 +377,38 @@ button.news-item.is-button[aria-expanded="true"] .arrow { transform: rotate(90de
 .news-body p:last-child { margin-bottom: 0; }
 .news-body img { width: 100%; height: auto; border-radius: var(--radius-md); margin-bottom: 20px; border: 1px solid var(--border); }
 
-/* ---------- 포토갤러리 ---------- */
-.gallery-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+/* ---------- 포토갤러리 (매소너리) ---------- */
+.gallery-grid { columns: 3 260px; column-gap: 28px; }
 .gallery-item {
-  display: block; width: 100%; position: relative; border-radius: var(--radius-md); overflow: hidden;
-  border: 1px solid var(--border); background: #fff; padding: 0; text-align: left; font: inherit; cursor: pointer;
+  display: block; width: 100%; break-inside: avoid; margin: 0 0 28px; position: relative;
+  border: 0; background: none; padding: 0; text-align: left; font: inherit; cursor: pointer;
 }
-.gallery-item img { display: block; width: 100%; aspect-ratio: 4 / 3; object-fit: cover; transition: transform .3s ease; }
-.gallery-item:hover img { transform: scale(1.04); }
-.gallery-count {
-  position: absolute; top: 10px; right: 10px; background: rgba(16,24,40,.65); color: #fff;
-  font-size: 11.5px; font-weight: 700; padding: 4px 9px; border-radius: 999px; backdrop-filter: blur(4px);
+/* 여러 장짜리 게시물은 카드 뒤로 살짝 겹쳐 비치는 사진 겹침 효과로 암시 (뱃지 대신) */
+.gallery-item.has-multiple::before,
+.gallery-item.has-multiple::after {
+  content: ""; position: absolute; inset: 0; background: #fff; border: 1px solid var(--border);
+  border-radius: var(--radius-md);
 }
-.gallery-caption { padding: 12px 14px; }
-.gallery-caption .date { display: block; font-size: 12px; color: var(--ink-300); font-weight: 700; }
-.gallery-caption p { margin: 4px 0 0; font-size: 13.5px; color: var(--ink-700); }
+.gallery-item.has-multiple::before { transform: rotate(1.4deg) translate(6px, 5px); z-index: 0; }
+.gallery-item.has-multiple::after { transform: rotate(-1.6deg) translate(-5px, 7px); z-index: -1; }
+.gallery-media {
+  position: relative; z-index: 1; display: block; border-radius: var(--radius-md); overflow: hidden;
+  border: 1px solid var(--border); background: #fff; box-shadow: var(--shadow-sm);
+}
+.gallery-media img { display: block; width: 100%; height: auto; transition: transform .35s ease; }
+.gallery-item:hover .gallery-media img { transform: scale(1.045); }
+.gallery-overlay {
+  position: absolute; left: 0; right: 0; bottom: 0; padding: 32px 14px 12px; display: flex; flex-direction: column; gap: 2px;
+  background: linear-gradient(to top, rgba(10,14,20,.85), rgba(10,14,20,.32) 60%, transparent);
+}
+.gallery-overlay .date { font-size: 11px; font-weight: 700; color: rgba(255,255,255,.75); letter-spacing: .02em; }
+.gallery-overlay .caption { font-size: 13.5px; font-weight: 600; color: #fff; line-height: 1.4; }
 @media (max-width: 960px) {
-  .gallery-grid { grid-template-columns: repeat(2, 1fr); }
+  .gallery-grid { columns: 2 200px; column-gap: 20px; }
+  .gallery-item { margin-bottom: 20px; }
 }
 @media (max-width: 600px) {
-  .gallery-grid { grid-template-columns: 1fr; }
+  .gallery-grid { columns: 1; }
 }
 
 /* ---------- 포토갤러리 라이트박스(캐러셀) ---------- */
