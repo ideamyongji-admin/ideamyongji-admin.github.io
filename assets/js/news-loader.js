@@ -59,15 +59,93 @@ function archiveItemHTML(item) {
     </div>`;
 }
 
-function galleryItemHTML(item) {
+// 예전 단일 이미지 형식({image: "..."})과 새 다중 이미지 형식({images: ["...", ...]})을 모두 지원
+function galleryItemImages(item) {
+  return Array.isArray(item.images) ? item.images : (item.image ? [item.image] : []);
+}
+
+function galleryItemHTML(item, index) {
+  const images = galleryItemImages(item);
+  const countBadge = images.length > 1 ? `<span class="gallery-count">🖼 ${images.length}</span>` : '';
   return `
-    <a class="gallery-item" href="${escapeHtml(item.image)}" target="_blank" rel="noopener">
-      <img src="${escapeHtml(item.image)}" alt="${escapeHtml(item.caption || item.date)}" loading="lazy">
+    <button type="button" class="gallery-item" data-gallery-index="${index}">
+      <img src="${escapeHtml(images[0] || '')}" alt="${escapeHtml(item.caption || item.date)}" loading="lazy">
+      ${countBadge}
       <div class="gallery-caption">
         <span class="date">${escapeHtml(item.date)}</span>
         ${item.caption ? `<p>${escapeHtml(item.caption)}</p>` : ''}
       </div>
-    </a>`;
+    </button>`;
+}
+
+// 사진이 여러 장인 게시물을 넘겨보기(캐러셀) 형태로 볼 수 있는 라이트박스
+function initGalleryLightbox(grid, items) {
+  let box = document.getElementById('gallery-lightbox');
+  if (!box) {
+    box = document.createElement('div');
+    box.id = 'gallery-lightbox';
+    box.className = 'lightbox';
+    box.hidden = true;
+    box.innerHTML = `
+      <button type="button" class="lightbox-close" aria-label="닫기">×</button>
+      <button type="button" class="lightbox-prev" aria-label="이전 사진">‹</button>
+      <img class="lightbox-img" alt="">
+      <button type="button" class="lightbox-next" aria-label="다음 사진">›</button>
+      <div class="lightbox-meta"><span class="lightbox-caption"></span><span class="lightbox-counter"></span></div>
+    `;
+    document.body.appendChild(box);
+  }
+
+  const imgEl = box.querySelector('.lightbox-img');
+  const captionEl = box.querySelector('.lightbox-caption');
+  const counterEl = box.querySelector('.lightbox-counter');
+  const prevBtn = box.querySelector('.lightbox-prev');
+  const nextBtn = box.querySelector('.lightbox-next');
+
+  let images = [];
+  let caption = '';
+  let idx = 0;
+
+  function render() {
+    imgEl.src = images[idx];
+    captionEl.textContent = caption;
+    counterEl.textContent = images.length > 1 ? `${idx + 1} / ${images.length}` : '';
+    prevBtn.hidden = images.length <= 1;
+    nextBtn.hidden = images.length <= 1;
+  }
+  function open(newImages, newCaption, startIndex) {
+    images = newImages;
+    caption = newCaption;
+    idx = startIndex || 0;
+    render();
+    box.hidden = false;
+    document.body.style.overflow = 'hidden';
+  }
+  function close() {
+    box.hidden = true;
+    document.body.style.overflow = '';
+  }
+  function next() { idx = (idx + 1) % images.length; render(); }
+  function prev() { idx = (idx - 1 + images.length) % images.length; render(); }
+
+  box.querySelector('.lightbox-close').addEventListener('click', close);
+  box.addEventListener('click', (e) => { if (e.target === box) close(); });
+  nextBtn.addEventListener('click', next);
+  prevBtn.addEventListener('click', prev);
+  document.addEventListener('keydown', (e) => {
+    if (box.hidden) return;
+    if (e.key === 'Escape') close();
+    if (e.key === 'ArrowRight') next();
+    if (e.key === 'ArrowLeft') prev();
+  });
+
+  grid.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-gallery-index]');
+    if (!btn) return;
+    const item = items[Number(btn.dataset.galleryIndex)];
+    if (!item) return;
+    open(galleryItemImages(item), item.caption || '', 0);
+  });
 }
 
 async function loadJSON(path) {
@@ -135,6 +213,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       if (items.length) {
         galleryList.innerHTML = items.map(galleryItemHTML).join('');
         if (galleryEmpty) galleryEmpty.hidden = true;
+        initGalleryLightbox(galleryList, items);
       } else if (galleryEmpty) {
         galleryEmpty.hidden = false;
       }
