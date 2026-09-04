@@ -155,7 +155,7 @@ async function renderNoticeList() {
       <div class="admin-row">
         <div>
           <div class="title">[${item.category}] ${item.title}</div>
-          <div class="meta">${item.date}${item.content ? ' · 내용 있음' : ' · 내용 없음(제목만 표시)'}${item.image ? ' · 이미지 첨부됨' : ''}</div>
+          <div class="meta">${item.date}${item.content ? ' · 내용 있음' : ' · 내용 없음(제목만 표시)'}${item.attachment ? ' · 파일 첨부됨' : ''}</div>
         </div>
         <div style="display:flex; gap:8px; flex-shrink:0;">
           <button class="btn btn--outline btn--sm" data-edit-notice="${i}">수정</button>
@@ -168,13 +168,13 @@ async function renderNoticeList() {
   }
 }
 
-async function addNotice(date, category, title, contentText, imageFile) {
-  let imagePath = '';
-  if (imageFile) {
-    imagePath = await uploadFileAndGetPath(imageFile, 'assets/images/news', `공지사항 이미지 업로드: ${title}`);
+async function addNotice(date, category, title, contentText, attachmentFile) {
+  let attachmentPath = '';
+  if (attachmentFile) {
+    attachmentPath = await uploadFileAndGetPath(attachmentFile, 'assets/files/news', `공지사항 첨부파일 업로드: ${title}`);
   }
   const { sha, content } = await getJSONFile('data/news.json');
-  content.unshift({ date, category, title, content: contentText || '', image: imagePath });
+  content.unshift({ date, category, title, content: contentText || '', attachment: attachmentPath });
   await putJSONFile('data/news.json', content, sha, `공지사항 등록: ${title}`);
 }
 
@@ -183,28 +183,28 @@ async function getNotice(index) {
   return content[index];
 }
 
-async function updateNotice(index, date, category, title, contentText, imageFile, removeImage) {
+async function updateNotice(index, date, category, title, contentText, attachmentFile, removeAttachment) {
   const { sha, content } = await getJSONFile('data/news.json');
   const existing = content[index] || {};
-  let imagePath = existing.image || '';
+  let attachmentPath = existing.attachment || '';
 
-  if (imageFile) {
-    imagePath = await uploadFileAndGetPath(imageFile, 'assets/images/news', `공지사항 이미지 교체: ${title}`);
-    if (existing.image) {
+  if (attachmentFile) {
+    attachmentPath = await uploadFileAndGetPath(attachmentFile, 'assets/files/news', `공지사항 첨부파일 교체: ${title}`);
+    if (existing.attachment) {
       try {
-        const fileData = await gh(`/contents/${existing.image}?ref=${BRANCH}`);
-        if (fileData) await deleteFile(existing.image, fileData.sha, `공지사항 기존 이미지 삭제: ${title}`);
+        const fileData = await gh(`/contents/${existing.attachment}?ref=${BRANCH}`);
+        if (fileData) await deleteFile(existing.attachment, fileData.sha, `공지사항 기존 첨부파일 삭제: ${title}`);
       } catch (e) { /* 무시 */ }
     }
-  } else if (removeImage && existing.image) {
+  } else if (removeAttachment && existing.attachment) {
     try {
-      const fileData = await gh(`/contents/${existing.image}?ref=${BRANCH}`);
-      if (fileData) await deleteFile(existing.image, fileData.sha, `공지사항 이미지 삭제: ${title}`);
+      const fileData = await gh(`/contents/${existing.attachment}?ref=${BRANCH}`);
+      if (fileData) await deleteFile(existing.attachment, fileData.sha, `공지사항 첨부파일 삭제: ${title}`);
     } catch (e) { /* 무시 */ }
-    imagePath = '';
+    attachmentPath = '';
   }
 
-  content[index] = { date, category, title, content: contentText || '', image: imagePath };
+  content[index] = { date, category, title, content: contentText || '', attachment: attachmentPath };
   await putJSONFile('data/news.json', content, sha, `공지사항 수정: ${title}`);
 }
 
@@ -212,11 +212,11 @@ async function deleteNotice(index) {
   const { sha, content } = await getJSONFile('data/news.json');
   const removed = content.splice(index, 1)[0];
   await putJSONFile('data/news.json', content, sha, `공지사항 삭제: ${removed ? removed.title : ''}`);
-  if (removed && removed.image) {
+  if (removed && removed.attachment) {
     try {
-      const fileData = await gh(`/contents/${removed.image}?ref=${BRANCH}`);
-      if (fileData) await deleteFile(removed.image, fileData.sha, `공지사항 이미지 삭제: ${removed.title}`);
-    } catch (e) { /* 이미지 삭제 실패는 무시 (목록에서는 이미 제거됨) */ }
+      const fileData = await gh(`/contents/${removed.attachment}?ref=${BRANCH}`);
+      if (fileData) await deleteFile(removed.attachment, fileData.sha, `공지사항 첨부파일 삭제: ${removed.title}`);
+    } catch (e) { /* 첨부파일 삭제 실패는 무시 (목록에서는 이미 제거됨) */ }
   }
 }
 
@@ -295,8 +295,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   const noticeFormTitle = $('#notice-form-title');
   const noticeSubmitBtn = $('#notice-submit-btn');
   const noticeCancelBtn = $('#notice-cancel-edit');
-  const noticeExistingImage = $('#notice-existing-image');
-  const noticeRemoveImage = $('#notice-remove-image');
+  const noticeExistingAttachment = $('#notice-existing-attachment');
+  const noticeRemoveAttachment = $('#notice-remove-attachment');
   const noticeEditIndex = $('#notice-edit-index');
 
   function resetNoticeFormToAddMode() {
@@ -306,8 +306,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     noticeSubmitBtn.textContent = '게시하기';
     noticeSubmitBtn.disabled = false;
     noticeCancelBtn.hidden = true;
-    noticeExistingImage.hidden = true;
-    noticeRemoveImage.checked = false;
+    noticeExistingAttachment.hidden = true;
+    noticeRemoveAttachment.checked = false;
   }
 
   function dotDateToInputValue(dateStr) {
@@ -326,9 +326,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     $('#notice-category').value = item.category;
     $('#notice-title').value = item.title;
     $('#notice-content').value = item.content || '';
-    $('#notice-image').value = '';
-    noticeRemoveImage.checked = false;
-    noticeExistingImage.hidden = !item.image;
+    $('#notice-attachment').value = '';
+    noticeRemoveAttachment.checked = false;
+    noticeExistingAttachment.hidden = !item.attachment;
     noticeFormTitle.textContent = '공지사항 수정';
     noticeSubmitBtn.textContent = '수정하기';
     noticeCancelBtn.hidden = false;
@@ -344,22 +344,22 @@ document.addEventListener('DOMContentLoaded', async () => {
     const category = $('#notice-category').value;
     const title = $('#notice-title').value.trim();
     const contentText = $('#notice-content').value.trim();
-    const imageFile = $('#notice-image').files[0] || null;
+    const attachmentFile = $('#notice-attachment').files[0] || null;
     const editIndex = noticeEditIndex.value;
     const isEdit = editIndex !== '';
     if (!date || !title) { showStatus(noticeStatus, '날짜와 제목을 입력하세요.', 'error'); return; }
-    if (imageFile && imageFile.size > MAX_UPLOAD_BYTES) {
-      showStatus(noticeStatus, `이미지 용량이 너무 큽니다. GitHub API 제한으로 ${Math.floor(MAX_UPLOAD_BYTES / 1024 / 1024)}MB 이하만 첨부할 수 있습니다.`, 'error');
+    if (attachmentFile && attachmentFile.size > MAX_UPLOAD_BYTES) {
+      showStatus(noticeStatus, `파일 용량이 너무 큽니다. GitHub API 제한으로 ${Math.floor(MAX_UPLOAD_BYTES / 1024 / 1024)}MB 이하만 첨부할 수 있습니다.`, 'error');
       return;
     }
     const btn = noticeSubmitBtn;
-    btn.disabled = true; btn.textContent = imageFile ? '이미지 업로드 중…' : (isEdit ? '수정 중…' : '게시 중…');
+    btn.disabled = true; btn.textContent = attachmentFile ? '파일 업로드 중…' : (isEdit ? '수정 중…' : '게시 중…');
     try {
       if (isEdit) {
-        await updateNotice(Number(editIndex), date, category, title, contentText, imageFile, noticeRemoveImage.checked);
+        await updateNotice(Number(editIndex), date, category, title, contentText, attachmentFile, noticeRemoveAttachment.checked);
         showStatus(noticeStatus, '공지사항이 수정되었습니다. 30~60초 후 사이트에 반영됩니다.', 'success');
       } else {
-        await addNotice(date, category, title, contentText, imageFile);
+        await addNotice(date, category, title, contentText, attachmentFile);
         showStatus(noticeStatus, '공지사항이 등록되었습니다. 30~60초 후 사이트에 반영됩니다.', 'success');
       }
       resetNoticeFormToAddMode();

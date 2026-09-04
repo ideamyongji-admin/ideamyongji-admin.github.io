@@ -14,18 +14,28 @@ function formatContent(content) {
     .join('');
 }
 
+const IMAGE_EXT_RE = /\.(png|jpe?g|gif|webp|svg|avif)$/i;
+
+// 업로드 시 파일명 앞에 붙는 "타임스탬프_" 접두어를 제거해 원래 파일명에 가깝게 표시
+function attachmentDisplayName(path) {
+  return (path.split('/').pop() || path).replace(/^\d+_/, '');
+}
+
 function newsItemHTML(item, index) {
   const hasText = !!(item.content && item.content.trim());
-  const hasImage = !!item.image;
-  const hasContent = hasText || hasImage;
+  const hasAttachment = !!item.attachment;
+  const hasContent = hasText || hasAttachment;
   const bodyId = `news-body-${index}`;
   const tag = hasContent ? 'button' : 'div';
   const attrs = hasContent
     ? `type="button" aria-expanded="false" aria-controls="${bodyId}" data-toggle="notice"`
     : '';
-  const imageHtml = hasImage
-    ? `<img src="${escapeHtml(item.image)}" alt="${escapeHtml(item.title)}" loading="lazy">`
-    : '';
+  let attachmentHtml = '';
+  if (hasAttachment) {
+    attachmentHtml = IMAGE_EXT_RE.test(item.attachment)
+      ? `<img src="${escapeHtml(item.attachment)}" alt="${escapeHtml(item.title)}" loading="lazy">`
+      : `<a class="btn btn--outline btn--sm" href="${escapeHtml(item.attachment)}" target="_blank" rel="noopener" style="margin-bottom:16px;">📎 ${escapeHtml(attachmentDisplayName(item.attachment))} 다운로드</a>`;
+  }
   const textHtml = hasText ? formatContent(item.content) : '';
   return `
     <div class="news-entry">
@@ -34,7 +44,7 @@ function newsItemHTML(item, index) {
         <div><span class="badge-cat">${escapeHtml(item.category)}</span><h4>${escapeHtml(item.title)}</h4></div>
         <span class="arrow">${hasContent ? '→' : ''}</span>
       </${tag}>
-      ${hasContent ? `<div class="news-body" id="${bodyId}" hidden>${imageHtml}${textHtml}</div>` : ''}
+      ${hasContent ? `<div class="news-body" id="${bodyId}" hidden>${attachmentHtml}${textHtml}</div>` : ''}
     </div>`;
 }
 
