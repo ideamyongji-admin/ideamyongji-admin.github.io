@@ -96,16 +96,6 @@ document.addEventListener('DOMContentLoaded', () => {
   const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   const canHover = window.matchMedia('(hover: hover)').matches;
 
-  // Lenis 부드러운 스크롤 (라이브러리가 로드된 페이지에서만 동작)
-  if (typeof window.Lenis !== 'undefined' && !prefersReducedMotion) {
-    const lenis = new window.Lenis({ duration: 1.1, smoothWheel: true });
-    function raf(time) {
-      lenis.raf(time);
-      requestAnimationFrame(raf);
-    }
-    requestAnimationFrame(raf);
-  }
-
   // 스크롤 연동 텍스트 리빌: 문단을 단어 단위로 쪼개서, 화면의 일정 지점을 지나면 하나씩 선명해짐
   const scrollTextEls = document.querySelectorAll('.scroll-reveal-text');
   if (scrollTextEls.length && !prefersReducedMotion) {
