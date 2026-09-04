@@ -1,10 +1,11 @@
-// IDEA 라운지 예약 시스템 — Phase 1+2: 로그인(Google) + 학번 등록 + 테이블 현황 표시.
-// 예약 생성/취소 기능은 Phase 3에서 추가됩니다.
+// IDEA 라운지 예약 시스템
+// Phase 1+2: 로그인(Google) + 학번 등록 + 테이블 현황
+// Phase 3: 실제 예약 생성/취소 (날짜별 시간대 그리드, 실시간 반영, 중복 예약 차단)
 //
-// 학교 이메일(mju.ac.kr)이 Google 계정 기반이 아니어서 로그인 자체로는 학생 신분을
-// 증명할 수 없습니다. 대신 Google 로그인 후 학번을 직접 입력받아 users/{uid}에
-// 저장하고, 이 학번이 마이크로디그리 명단(microdegreeRoster)에 있는지로 우선권을
-// 판단합니다.
+// 중복 예약 차단 원리: 예약 문서 ID를 "{tableId}_{date}_{startTime}"로 고정하고,
+// Firestore 보안 규칙에서 이미 존재하는 문서에 대한 쓰기(update)는 항상 거부하도록
+// 되어 있습니다. 따라서 두 사람이 같은 슬롯을 동시에 클릭해도 먼저 도착한 요청만
+// "생성"으로 처리되고 나중 요청은 "수정"으로 취급되어 규칙에 의해 자동으로 막힙니다.
 
 import { auth, db } from "./firebase-init.js";
 import {
@@ -19,12 +20,24 @@ import {
   doc,
   getDoc,
   setDoc,
+  deleteDoc,
   serverTimestamp,
   query,
+  where,
   orderBy,
 } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js";
 
+const OPEN_HOUR = 9;
+const CLOSE_HOUR = 21; // 마지막 슬롯은 20:00~21:00
+const BOOKING_WINDOW_DAYS = 13; // 오늘 포함 최대 14일 후까지 예약 가능
+
 const $ = (sel) => document.querySelector(sel);
+
+function escapeHtml(str) {
+  const div = document.createElement("div");
+  div.textContent = str == null ? "" : String(str);
+  return div.innerHTML;
+}
 
 function showStatus(el, message, type) {
   el.textContent = message;
@@ -32,6 +45,27 @@ function showStatus(el, message, type) {
 }
 function hideStatus(el) {
   el.className = "status-msg";
+}
+
+function localDateStr(d) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+function timeSlots() {
+  const slots = [];
+  for (let h = OPEN_HOUR; h < CLOSE_HOUR; h++) {
+    slots.push({ start: `${String(h).padStart(2, "0")}:00`, end: `${String(h + 1).padStart(2, "0")}:00` });
+  }
+  return slots;
+}
+
+function isPastSlot(dateStr, startTime) {
+  const now = new Date();
+  const slotStart = new Date(`${dateStr}T${startTime}:00`);
+  return slotStart.getTime() <= now.getTime();
 }
 
 // ---------- 로그인 (Google) ----------
@@ -92,7 +126,7 @@ function initProfileForm(onProfileSaved) {
     try {
       const profile = { studentId, name, email: user.email || "", createdAt: serverTimestamp() };
       await setDoc(doc(db, "users", user.uid), profile);
-      onProfileSaved(profile);
+      onProfileSaved();
     } catch (err) {
       showStatus(statusEl, `등록에 실패했습니다: ${err.message}`, "error");
     } finally {
@@ -112,7 +146,6 @@ async function checkPriorityMembership(studentId) {
 }
 
 // ---------- 화면 상태 전환 ----------
-// login-panel(로그인 전) → profile-panel(로그인 O, 학번 미등록) → user-panel(등록 완료)
 
 function showPanel(name) {
   const panels = { login: $("#login-panel"), profile: $("#profile-panel"), user: $("#user-panel") };
@@ -121,29 +154,7 @@ function showPanel(name) {
   });
 }
 
-async function refreshAuthUI(user, tablesList) {
-  if (!user) {
-    showPanel("login");
-    if (tablesList) tablesList.setUser(null, false);
-    return;
-  }
-
-  const profile = await fetchProfile(user.uid);
-  if (!profile) {
-    showPanel("profile");
-    if (tablesList) tablesList.setUser(user, false);
-    return;
-  }
-
-  const isPriority = await checkPriorityMembership(profile.studentId);
-  $("#user-name").textContent = profile.name;
-  $("#user-student-id").textContent = profile.studentId;
-  $("#priority-badge").hidden = !isPriority;
-  showPanel("user");
-  if (tablesList) tablesList.setUser(user, isPriority);
-}
-
-// ---------- 테이블 현황 ----------
+// ---------- 테이블 현황 카드 ----------
 
 function tableCardHTML(table, isPriority, isLoggedIn) {
   const isPriorityOnly = table.accessLevel === "priority-only";
@@ -156,65 +167,287 @@ function tableCardHTML(table, isPriority, isLoggedIn) {
   }
   return `
     <div class="card">
-      <h3>${table.name}</h3>
+      <h3>${escapeHtml(table.name)}</h3>
       <p>정원 ${table.capacity}인 · IDEA 라운지(1공학관 513호)</p>
       <div class="tags">${badge}</div>
       ${noteHtml}
     </div>`;
 }
 
-function initTablesList() {
+function initTablesSummary(getState) {
   const listEl = $("#tables-list");
   if (!listEl) return;
 
-  let currentUser = null;
-  let currentIsPriority = false;
-  let latestTables = [];
-
-  const render = (tables) => {
-    listEl.innerHTML = tables
-      .map((t) => tableCardHTML(t, currentIsPriority, !!currentUser))
-      .join("");
+  const render = () => {
+    const { tables, isLoggedIn, isPriority } = getState();
+    if (!tables.length) {
+      listEl.innerHTML =
+        '<p style="color:var(--ink-500); grid-column:1/-1; text-align:center; padding:40px 0;">아직 테이블 정보가 등록되지 않았습니다. (Firebase 콘솔에서 tables 컬렉션을 먼저 생성해 주세요)</p>';
+      return;
+    }
+    listEl.innerHTML = tables.map((t) => tableCardHTML(t, isPriority, isLoggedIn)).join("");
   };
+  return { render };
+}
 
+// ---------- 예약 그리드 (Phase 3) ----------
+
+function BookingModule() {
+  let unsubReservations = null;
+  let unsubMine = null;
+  let currentDate = localDateStr(new Date());
+  let reservationsByKey = {}; // "tableId_startTime" -> reservation data
+  let ctx = { uid: null, studentId: null, name: null, isPriority: false };
+
+  function slotButtonHTML(table, slot) {
+    const key = `${table.id}_${slot.start}`;
+    const reservation = reservationsByKey[key];
+
+    if (reservation) {
+      if (reservation.uid === ctx.uid) {
+        return `<button type="button" class="slot-btn is-mine" data-cancel="${key}">내 예약 · 취소</button>`;
+      }
+      return `<button type="button" class="slot-btn is-booked" disabled>예약됨${reservation.name ? ` (${escapeHtml(reservation.name)})` : ""}</button>`;
+    }
+    if (isPastSlot(currentDate, slot.start)) {
+      return `<button type="button" class="slot-btn" disabled>마감</button>`;
+    }
+    if (table.accessLevel === "priority-only" && !ctx.isPriority) {
+      return `<button type="button" class="slot-btn" disabled title="마이크로디그리 전용 테이블입니다">우선권 필요</button>`;
+    }
+    return `<button type="button" class="slot-btn" data-book="${table.id}|${slot.start}|${slot.end}">예약하기</button>`;
+  }
+
+  function renderGrid(tables) {
+    const wrap = $("#booking-grid-wrap");
+    if (!wrap || !tables.length) return;
+    const slots = timeSlots();
+    const head = `<tr><th>시간</th>${tables.map((t) => `<th>${escapeHtml(t.name)}</th>`).join("")}</tr>`;
+    const rows = slots
+      .map(
+        (slot) => `<tr><th>${slot.start}</th>${tables.map((t) => `<td>${slotButtonHTML(t, slot)}</td>`).join("")}</tr>`
+      )
+      .join("");
+    wrap.innerHTML = `<table class="booking-table"><thead>${head}</thead><tbody>${rows}</tbody></table>`;
+  }
+
+  function renderMyReservations(items) {
+    const el = $("#my-reservations");
+    if (!el) return;
+    if (!items.length) {
+      el.innerHTML = '<p style="color:var(--ink-500); text-align:center; padding:24px 0;">예약 내역이 없습니다.</p>';
+      return;
+    }
+    const sorted = [...items].sort((a, b) => (a.date + a.startTime).localeCompare(b.date + b.startTime));
+    el.innerHTML = sorted
+      .map(
+        (r) => `
+      <div class="admin-row">
+        <div>
+          <div class="title">${escapeHtml(r.tableName || r.tableId)} · ${escapeHtml(r.date)} ${escapeHtml(r.startTime)}~${escapeHtml(r.endTime)}</div>
+          <div class="meta">${escapeHtml(r.name || "")}</div>
+        </div>
+        <button type="button" class="btn btn--outline btn--sm" data-cancel-id="${r.id}">취소</button>
+      </div>`
+      )
+      .join("");
+  }
+
+  function subscribeDate(date, tables) {
+    if (unsubReservations) unsubReservations();
+    currentDate = date;
+    const q = query(collection(db, "reservations"), where("date", "==", date));
+    unsubReservations = onSnapshot(
+      q,
+      (snapshot) => {
+        reservationsByKey = {};
+        snapshot.forEach((d) => {
+          const data = d.data();
+          reservationsByKey[`${data.tableId}_${data.startTime}`] = data;
+        });
+        renderGrid(tables);
+      },
+      (err) => {
+        const wrap = $("#booking-grid-wrap");
+        if (wrap) wrap.innerHTML = `<p style="color:#d92d20;">예약 현황을 불러오지 못했습니다: ${err.message}</p>`;
+      }
+    );
+  }
+
+  function subscribeMine(uid, tables) {
+    if (unsubMine) unsubMine();
+    const q = query(collection(db, "reservations"), where("uid", "==", uid));
+    unsubMine = onSnapshot(q, (snapshot) => {
+      const items = snapshot.docs.map((d) => {
+        const data = d.data();
+        const table = tables.find((t) => t.id === data.tableId);
+        return { id: d.id, ...data, tableName: table ? table.name : data.tableId };
+      });
+      renderMyReservations(items);
+    });
+  }
+
+  async function bookSlot(tableId, startTime, endTime) {
+    const reservationId = `${tableId}_${currentDate}_${startTime}`;
+    try {
+      await setDoc(doc(db, "reservations", reservationId), {
+        uid: ctx.uid,
+        studentId: ctx.studentId,
+        name: ctx.name,
+        tableId,
+        date: currentDate,
+        startTime,
+        endTime,
+        status: "confirmed",
+        createdAt: serverTimestamp(),
+      });
+    } catch (err) {
+      if (err.code === "permission-denied") {
+        alert("이미 다른 사람이 예약했거나 예약 권한이 없는 테이블입니다. 화면을 새로고침해 주세요.");
+      } else {
+        alert(`예약에 실패했습니다: ${err.message}`);
+      }
+    }
+  }
+
+  async function cancelReservationById(reservationId) {
+    if (!confirm("이 예약을 취소할까요?")) return;
+    try {
+      await deleteDoc(doc(db, "reservations", reservationId));
+    } catch (err) {
+      alert(`취소에 실패했습니다: ${err.message}`);
+    }
+  }
+
+  function initInteractions(getTables) {
+    const dateInput = $("#booking-date");
+    if (dateInput) {
+      const today = new Date();
+      const max = new Date();
+      max.setDate(today.getDate() + BOOKING_WINDOW_DAYS);
+      dateInput.min = localDateStr(today);
+      dateInput.max = localDateStr(max);
+      if (!dateInput.value) dateInput.value = localDateStr(today);
+      dateInput.addEventListener("change", () => {
+        subscribeDate(dateInput.value || localDateStr(today), getTables());
+      });
+    }
+
+    const gridWrap = $("#booking-grid-wrap");
+    if (gridWrap) {
+      gridWrap.addEventListener("click", (e) => {
+        const bookBtn = e.target.closest("[data-book]");
+        if (bookBtn) {
+          const [tableId, startTime, endTime] = bookBtn.dataset.book.split("|");
+          bookSlot(tableId, startTime, endTime);
+          return;
+        }
+        const cancelBtn = e.target.closest("[data-cancel]");
+        if (cancelBtn) {
+          const key = cancelBtn.dataset.cancel;
+          const reservation = reservationsByKey[key];
+          if (reservation) cancelReservationById(`${reservation.tableId}_${reservation.date}_${reservation.startTime}`);
+        }
+      });
+    }
+
+    const myListEl = $("#my-reservations");
+    if (myListEl) {
+      myListEl.addEventListener("click", (e) => {
+        const btn = e.target.closest("[data-cancel-id]");
+        if (btn) cancelReservationById(btn.dataset.cancelId);
+      });
+    }
+  }
+
+  function start(user, profile, isPriority, tables) {
+    ctx = { uid: user.uid, studentId: profile.studentId, name: profile.name, isPriority };
+    $("#booking-login-required").hidden = true;
+    $("#booking-section").hidden = false;
+    const dateInput = $("#booking-date");
+    subscribeDate((dateInput && dateInput.value) || currentDate, tables);
+    subscribeMine(user.uid, tables);
+  }
+
+  function stop() {
+    if (unsubReservations) unsubReservations();
+    if (unsubMine) unsubMine();
+    unsubReservations = null;
+    unsubMine = null;
+    reservationsByKey = {};
+    const loginRequired = $("#booking-login-required");
+    const section = $("#booking-section");
+    if (loginRequired) loginRequired.hidden = false;
+    if (section) section.hidden = true;
+    const myListEl = $("#my-reservations");
+    if (myListEl) myListEl.innerHTML = "";
+  }
+
+  return { start, stop, initInteractions, refreshGrid: (tables) => renderGrid(tables) };
+}
+
+// ---------- 테이블 목록 로딩 (전역 공유) ----------
+
+function initTablesFeed(onChange) {
   const q = query(collection(db, "tables"), orderBy("name"));
   onSnapshot(
     q,
     (snapshot) => {
-      latestTables = snapshot.docs.map((d) => d.data());
-      if (!latestTables.length) {
-        listEl.innerHTML =
-          '<p style="color:var(--ink-500); grid-column:1/-1; text-align:center; padding:40px 0;">아직 테이블 정보가 등록되지 않았습니다. (Firebase 콘솔에서 tables 컬렉션을 먼저 생성해 주세요)</p>';
-        return;
-      }
-      render(latestTables);
+      onChange(snapshot.docs.map((d) => ({ id: d.id, ...d.data() })));
     },
-    (err) => {
-      listEl.innerHTML = `<p style="color:#d92d20; grid-column:1/-1;">테이블 정보를 불러오지 못했습니다: ${err.message}</p>`;
-    }
+    () => onChange([])
   );
-
-  return {
-    setUser: (user, isPriority) => {
-      currentUser = user;
-      currentIsPriority = isPriority;
-      if (latestTables.length) render(latestTables);
-    },
-  };
 }
 
 // ---------- 초기화 ----------
 
-document.addEventListener("DOMContentLoaded", async () => {
-  const tablesList = initTablesList();
-  initLoginButton();
-  initSignOut();
-  initProfileForm((profile) => {
-    // 등록 직후 바로 갱신 (auth 상태는 그대로이므로 UI만 다시 그림)
-    refreshAuthUI(auth.currentUser, tablesList);
+document.addEventListener("DOMContentLoaded", () => {
+  let tables = [];
+  let uiState = { isLoggedIn: false, isPriority: false };
+
+  const summary = initTablesSummary(() => ({ tables, ...uiState }));
+  const booking = BookingModule();
+  booking.initInteractions(() => tables);
+
+  initTablesFeed((newTables) => {
+    tables = newTables;
+    if (summary) summary.render();
+    booking.refreshGrid(tables);
   });
 
+  initLoginButton();
+  initSignOut();
+  initProfileForm(() => refreshAuthUI(auth.currentUser));
+
+  async function refreshAuthUI(user) {
+    if (!user) {
+      uiState = { isLoggedIn: false, isPriority: false };
+      showPanel("login");
+      booking.stop();
+      if (summary) summary.render();
+      return;
+    }
+
+    const profile = await fetchProfile(user.uid);
+    if (!profile) {
+      uiState = { isLoggedIn: true, isPriority: false };
+      showPanel("profile");
+      booking.stop();
+      if (summary) summary.render();
+      return;
+    }
+
+    const isPriority = await checkPriorityMembership(profile.studentId);
+    uiState = { isLoggedIn: true, isPriority };
+    $("#user-name").textContent = profile.name;
+    $("#user-student-id").textContent = profile.studentId;
+    $("#priority-badge").hidden = !isPriority;
+    showPanel("user");
+    if (summary) summary.render();
+    booking.start(user, profile, isPriority, tables);
+  }
+
   onAuthStateChanged(auth, (user) => {
-    refreshAuthUI(user, tablesList);
+    refreshAuthUI(user);
   });
 });
