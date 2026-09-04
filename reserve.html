@@ -25,6 +25,14 @@
   .slot-btn:disabled { cursor: not-allowed; opacity: .55; }
   .slot-btn.is-booked { background: var(--bg-soft-2); color: var(--ink-500); }
   .slot-btn.is-mine { background: rgba(46,125,224,.1); border-color: var(--blue); color: var(--blue); font-weight: 700; }
+  @keyframes slot-pulse {
+    0% { box-shadow: 0 0 0 0 rgba(46,125,224,.5); }
+    100% { box-shadow: 0 0 0 14px rgba(46,125,224,0); }
+  }
+  .slot-btn.just-booked { animation: slot-pulse .7s ease-out; }
+
+  .page-hero { padding-bottom: 116px; }
+  .hero-overlap { margin-top: -64px; position: relative; z-index: 2; }
 </style>
 </head>
 <body>
@@ -81,18 +89,20 @@
 <section class="section--tight">
   <div class="container">
 
-    <div id="login-panel" class="card" style="max-width:440px; margin: 0 auto 48px;">
+    <div class="hero-overlap">
+
+    <div id="login-panel" class="card glass-card" style="max-width:440px; margin: 0 auto 48px;">
       <h3 style="font-size:16px; margin-bottom:8px;">Google 계정으로 로그인</h3>
-      <p style="font-size:13.5px; color:var(--ink-500); margin-bottom:16px;">
+      <p style="font-size:13.5px; color:var(--ink-700); margin-bottom:16px;">
         로그인 후 학번을 등록하면 예약을 이용할 수 있습니다.
       </p>
       <div id="login-status" class="status-msg"></div>
       <button id="google-login-btn" type="button" class="btn btn--primary">Google 계정으로 로그인</button>
     </div>
 
-    <div id="profile-panel" class="card" style="max-width:440px; margin: 0 auto 48px;" hidden>
+    <div id="profile-panel" class="card glass-card" style="max-width:440px; margin: 0 auto 48px;" hidden>
       <h3 style="font-size:16px; margin-bottom:8px;">학번 등록</h3>
-      <p style="font-size:13.5px; color:var(--ink-500); margin-bottom:16px;">
+      <p style="font-size:13.5px; color:var(--ink-700); margin-bottom:16px;">
         예약 이용을 위해 학번과 이름을 등록해 주세요. 마이크로디그리 참여 학생 명단과 대조해 우선권 여부를 확인합니다.
       </p>
       <div id="profile-status" class="status-msg"></div>
@@ -109,16 +119,18 @@
       </form>
     </div>
 
-    <div id="user-panel" class="card" style="max-width:440px; margin: 0 auto 48px;" hidden>
+    <div id="user-panel" class="card glass-card" style="max-width:440px; margin: 0 auto 48px;" hidden>
       <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;">
         <div>
-          <p style="font-size:13px; color:var(--ink-500); margin-bottom:4px;">로그인됨</p>
+          <p style="font-size:13px; color:var(--ink-700); margin-bottom:4px;">로그인됨</p>
           <p id="user-name" style="font-weight:700;"></p>
-          <p id="user-student-id" style="font-size:13px; color:var(--ink-500);"></p>
+          <p id="user-student-id" style="font-size:13px; color:var(--ink-700);"></p>
           <span id="priority-badge" class="tag" style="margin-top:8px; display:inline-block;" hidden>마이크로디그리 우선권 회원</span>
         </div>
         <button id="logout-btn" type="button" class="btn btn--outline btn--sm">로그아웃</button>
       </div>
+    </div>
+
     </div>
 
     <div class="section-head" style="margin-bottom:32px;">
@@ -198,6 +210,8 @@
     </div>
   </div>
 </footer>
+
+<div id="toast-stack" class="toast-stack" aria-live="polite"></div>
 
 <script src="assets/js/main.js"></script>
 <script type="module" src="assets/js/reserve.js"></script>

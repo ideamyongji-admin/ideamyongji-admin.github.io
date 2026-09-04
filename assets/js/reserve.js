@@ -50,6 +50,20 @@ function hideStatus(el) {
   el.className = "status-msg";
 }
 
+function showToast(message, type) {
+  const stack = document.getElementById("toast-stack");
+  if (!stack) return;
+  const el = document.createElement("div");
+  el.className = "toast" + (type === "error" ? " toast--error" : type === "success" ? " toast--success" : "");
+  el.textContent = message;
+  stack.appendChild(el);
+  requestAnimationFrame(() => el.classList.add("show"));
+  setTimeout(() => {
+    el.classList.remove("show");
+    setTimeout(() => el.remove(), 300);
+  }, 3200);
+}
+
 function localDateStr(d) {
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, "0");
@@ -292,7 +306,7 @@ function BookingModule() {
     });
   }
 
-  async function bookSlot(tableId, startTime, endTime) {
+  async function bookSlot(tableId, startTime, endTime, btnEl) {
     const reservationId = `${tableId}_${currentDate}_${startTime}`;
     const usageId = `${ctx.uid}_${currentDate}`;
     const usageRef = doc(db, "dailyUsage", usageId);
@@ -324,13 +338,18 @@ function BookingModule() {
           tx.set(usageRef, { uid: ctx.uid, date: currentDate, hours: 1 });
         }
       });
+      if (btnEl) {
+        btnEl.classList.add("just-booked");
+        setTimeout(() => btnEl.classList.remove("just-booked"), 700);
+      }
+      showToast("예약이 완료되었습니다.", "success");
     } catch (err) {
       if (err.message === "DAILY_LIMIT_REACHED") {
-        alert(`하루 최대 ${DAILY_LIMIT_HOURS}시간까지만 예약할 수 있습니다.`);
+        showToast(`하루 최대 ${DAILY_LIMIT_HOURS}시간까지만 예약할 수 있습니다.`, "error");
       } else if (err.code === "permission-denied") {
-        alert("이미 다른 사람이 예약했거나 예약 권한이 없는 테이블입니다. 화면을 새로고침해 주세요.");
+        showToast("이미 다른 사람이 예약했거나 예약 권한이 없는 테이블입니다. 화면을 새로고침해 주세요.", "error");
       } else {
-        alert(`예약에 실패했습니다: ${err.message}`);
+        showToast(`예약에 실패했습니다: ${err.message}`, "error");
       }
     }
   }
@@ -350,8 +369,9 @@ function BookingModule() {
           tx.update(usageRef, { hours: remaining });
         }
       });
+      showToast("예약이 취소되었습니다.", "success");
     } catch (err) {
-      alert(`취소에 실패했습니다: ${err.message}`);
+      showToast(`취소에 실패했습니다: ${err.message}`, "error");
     }
   }
 
@@ -375,7 +395,7 @@ function BookingModule() {
         const bookBtn = e.target.closest("[data-book]");
         if (bookBtn) {
           const [tableId, startTime, endTime] = bookBtn.dataset.book.split("|");
-          bookSlot(tableId, startTime, endTime);
+          bookSlot(tableId, startTime, endTime, bookBtn);
           return;
         }
         const cancelBtn = e.target.closest("[data-cancel]");
