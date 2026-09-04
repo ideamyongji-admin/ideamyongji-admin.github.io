@@ -121,10 +121,75 @@ function sanitizeFileName(name) {
 
 const MAX_UPLOAD_BYTES = 100 * 1024 * 1024; // GitHub Git Data API(blob)의 실질 상한
 
+// 사진을 원본 그대로 올리면(휴대폰 사진은 보통 2~4MB, 4000px 이상) 방문자가
+// 화면에서 350px로 보이는 사진 때문에 수 MB를 내려받게 됩니다.
+// 업로드 직전에 브라우저에서 긴 변 1600px로 줄이고 JPEG로 다시 인코딩합니다.
+const IMAGE_MAX_EDGE = 1600;
+const IMAGE_QUALITY = 0.82;
+const RESIZABLE_TYPE_RE = /^image\/(jpeg|png|webp)$/i;
+
+function loadImageBitmap(file) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => { URL.revokeObjectURL(url); resolve(img); };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('이미지를 열 수 없습니다')); };
+    img.src = url;
+  });
+}
+
+// 반환: { blob, ext, width, height } — 줄일 필요가 없으면 blob은 null
+async function shrinkImage(file) {
+  if (!RESIZABLE_TYPE_RE.test(file.type)) return null;
+  let img;
+  try { img = await loadImageBitmap(file); } catch (_) { return null; }
+
+  const scale = Math.min(1, IMAGE_MAX_EDGE / Math.max(img.naturalWidth, img.naturalHeight));
+  const w = Math.round(img.naturalWidth * scale);
+  const h = Math.round(img.naturalHeight * scale);
+
+  // 이미 작고 용량도 넉넉하면 원본을 그대로 씁니다(불필요한 재인코딩 방지)
+  if (scale === 1 && file.size <= 400 * 1024 && /jpeg/i.test(file.type)) {
+    return { blob: null, ext: 'jpg', width: w, height: h };
+  }
+
+  const canvas = document.createElement('canvas');
+  canvas.width = w; canvas.height = h;
+  const ctx = canvas.getContext('2d');
+  ctx.imageSmoothingQuality = 'high';
+  ctx.fillStyle = '#fff';           // PNG 투명 배경이 검게 나오지 않도록
+  ctx.fillRect(0, 0, w, h);
+  ctx.drawImage(img, 0, 0, w, h);
+
+  const blob = await new Promise((res) => canvas.toBlob(res, 'image/jpeg', IMAGE_QUALITY));
+  if (!blob) return { blob: null, ext: 'jpg', width: w, height: h };
+  return { blob, ext: 'jpg', width: w, height: h };
+}
+
+function readBlobAsBase64(blob) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result).split(',')[1]);
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+}
+
 async function uploadFileAndGetPath(file, folder, message) {
-  const safeName = sanitizeFileName(file.name);
+  const shrunk = await shrinkImage(file);
+  let safeName = sanitizeFileName(file.name);
+  let payload = file;
+
+  if (shrunk) {
+    // 파일명 끝에 실제 픽셀 치수를 남깁니다. news-loader가 이걸 읽어 <img>에
+    // width/height를 채우고, 사진 로드 중 레이아웃이 튀는 현상을 막습니다.
+    const stem = safeName.replace(/\.[^.]+$/, '');
+    safeName = `${stem}_${shrunk.width}x${shrunk.height}.${shrunk.ext}`;
+    if (shrunk.blob) payload = shrunk.blob;
+  }
+
   const path = `${folder}/${Date.now()}_${safeName}`;
-  const base64 = await readFileAsBase64(file);
+  const base64 = shrunk && shrunk.blob ? await readBlobAsBase64(shrunk.blob) : await readFileAsBase64(payload);
   await uploadLargeFile(path, base64, message);
   return path;
 }
