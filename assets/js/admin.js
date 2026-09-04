@@ -283,7 +283,13 @@ async function renderGalleryList() {
           <div class="title">${item.caption || '(설명 없음)'}</div>
           <div class="meta">${item.date} · 사진 ${count}장</div>
         </div>
-        <button class="btn btn--danger btn--sm" data-delete-gallery="${i}">삭제</button>
+        <div style="display:flex; gap:8px; flex-shrink:0;">
+          <label class="btn btn--outline btn--sm" style="cursor:pointer; margin-bottom:0;">
+            <span>사진 추가</span>
+            <input type="file" accept="image/*" multiple data-add-gallery-input="${i}" style="display:none;">
+          </label>
+          <button class="btn btn--danger btn--sm" data-delete-gallery="${i}">삭제</button>
+        </div>
       </div>
     `;
     }).join('');
@@ -304,6 +310,31 @@ async function addGalleryPhotos(date, caption, files, onProgress) {
   const { sha, content } = await getJSONFile('data/gallery.json');
   content.unshift({ date, caption: caption || '', images });
   await putJSONFile('data/gallery.json', content, sha, `포토갤러리 등록: ${caption || date} (${images.length}장)`);
+}
+
+// 이미 등록된 게시물에 사진을 추가로 업로드합니다. 파일 선택 창은 한 폴더 안에서만
+// 여러 장을 고를 수 있는 OS 제약이 있어서, 서로 다른 폴더의 사진을 한 게시물로 모으려면
+// 이 기능으로 여러 번 나눠 추가하면 됩니다.
+async function appendGalleryPhotos(index, files, onProgress) {
+  const { content: before } = await getJSONFile('data/gallery.json');
+  const target = before[index];
+  if (!target) throw new Error('게시물을 찾을 수 없습니다. 목록을 새로고침해 주세요.');
+  const label = target.caption || target.date;
+
+  const uploaded = [];
+  for (const file of files) {
+    const path = await uploadFileAndGetPath(file, 'assets/images/gallery', `포토갤러리 사진 추가: ${label}`);
+    uploaded.push(path);
+    if (onProgress) onProgress(uploaded.length, files.length);
+  }
+
+  const { sha, content } = await getJSONFile('data/gallery.json');
+  const item = content[index];
+  if (!item) throw new Error('업로드는 완료됐지만 게시물을 찾지 못해 목록에 반영하지 못했습니다. 목록을 새로고침해 주세요.');
+  const existingImages = Array.isArray(item.images) ? item.images : (item.image ? [item.image] : []);
+  item.images = [...existingImages, ...uploaded];
+  delete item.image;
+  await putJSONFile('data/gallery.json', content, sha, `포토갤러리 사진 추가: ${label} (+${uploaded.length}장)`);
 }
 
 async function deleteGalleryPhoto(index) {
@@ -529,6 +560,33 @@ document.addEventListener('DOMContentLoaded', async () => {
     } catch (err) {
       alert(err.message);
       btn.disabled = false;
+    }
+  });
+
+  $('#gallery-admin-list').addEventListener('change', async (e) => {
+    const input = e.target.closest('[data-add-gallery-input]');
+    if (!input) return;
+    const index = Number(input.dataset.addGalleryInput);
+    const files = [...input.files];
+    if (!files.length) return;
+    const oversized = files.find((f) => f.size > MAX_UPLOAD_BYTES);
+    if (oversized) {
+      alert(`"${oversized.name}" 파일 용량이 너무 큽니다. GitHub API 제한으로 장당 ${Math.floor(MAX_UPLOAD_BYTES / 1024 / 1024)}MB 이하만 업로드할 수 있습니다.`);
+      input.value = '';
+      return;
+    }
+    const label = input.closest('label');
+    const textEl = label.querySelector('span');
+    input.disabled = true;
+    try {
+      await appendGalleryPhotos(index, files, (done, total) => {
+        textEl.textContent = `업로드 중… (${done}/${total})`;
+      });
+      await renderGalleryList();
+    } catch (err) {
+      alert(err.message);
+      textEl.textContent = '사진 추가';
+      input.disabled = false;
     }
   });
 
