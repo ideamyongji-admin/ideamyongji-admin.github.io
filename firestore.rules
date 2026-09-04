@@ -24,6 +24,16 @@ service cloud.firestore {
         exists(/databases/$(database)/documents/microdegreeRoster/$(myStudentId()));
     }
 
+    // 하루 예약 한도(2시간=슬롯 2개) 확인용: 아직 그날 예약이 없으면 0시간으로 간주
+    function dailyUsageId(date) {
+      return request.auth.uid + '_' + date;
+    }
+    function currentDailyHours(date) {
+      return exists(/databases/$(database)/documents/dailyUsage/$(dailyUsageId(date)))
+        ? get(/databases/$(database)/documents/dailyUsage/$(dailyUsageId(date))).data.hours
+        : 0;
+    }
+
     // 테이블 정보: 누구나 읽기 가능(로그인 전에도 현황 확인 가능), 쓰기는 콘솔에서만
     match /tables/{tableId} {
       allow read: if true;
@@ -60,11 +70,33 @@ service cloud.firestore {
         && request.resource.data.tableId in ['table-1', 'table-2', 'table-3', 'table-4']
         // 1~3번 테이블은 마이크로디그리 학생 전용, 4번 테이블은 전체 학생 이용 가능
         && (request.resource.data.tableId == 'table-4' || isPriorityMember())
-        && reservationId == request.resource.data.tableId + '_' + request.resource.data.date + '_' + request.resource.data.startTime;
+        && reservationId == request.resource.data.tableId + '_' + request.resource.data.date + '_' + request.resource.data.startTime
+        // 1인당 하루 최대 2시간(슬롯 2개)까지만 예약 가능. dailyUsage 문서는
+        // 같은 트랜잭션 안에서 함께 +1 되어야 하며, 그 값 자체는 아래 dailyUsage 규칙이 검증합니다.
+        && currentDailyHours(request.resource.data.date) < 2;
 
       // 본인 예약만 취소(삭제) 가능, 수정은 허용하지 않음(취소 후 재예약)
       allow delete: if isSignedIn() && resource.data.uid == request.auth.uid;
       allow update: if false;
+    }
+
+    // 하루 예약 시간 누적치(문서 ID = "{uid}_{date}"). 예약 생성/취소 시 클라이언트가
+    // 트랜잭션으로 reservations와 함께 +1/-1 합니다. 한 번에 1씩만, 최대 2까지만 증가 허용.
+    match /dailyUsage/{usageId} {
+      allow read: if isSignedIn();
+
+      allow create: if isSignedIn()
+        && usageId == dailyUsageId(request.resource.data.date)
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.hours == 1;
+
+      allow update: if isSignedIn() && resource.data.uid == request.auth.uid
+        && (
+          (request.resource.data.hours == resource.data.hours + 1 && request.resource.data.hours <= 2) ||
+          (request.resource.data.hours == resource.data.hours - 1 && request.resource.data.hours >= 0)
+        );
+
+      allow delete: if false;
     }
   }
 }

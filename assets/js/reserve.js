@@ -21,11 +21,14 @@ import {
   getDoc,
   setDoc,
   deleteDoc,
+  runTransaction,
   serverTimestamp,
   query,
   where,
   orderBy,
 } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js";
+
+const DAILY_LIMIT_HOURS = 2;
 
 const OPEN_HOUR = 9;
 const CLOSE_HOUR = 21; // 마지막 슬롯은 20:00~21:00
@@ -197,6 +200,7 @@ function BookingModule() {
   let unsubMine = null;
   let currentDate = localDateStr(new Date());
   let reservationsByKey = {}; // "tableId_startTime" -> reservation data
+  let myReservationsById = {}; // reservationId -> reservation data
   let ctx = { uid: null, studentId: null, name: null, isPriority: false };
 
   function slotButtonHTML(table, slot) {
@@ -283,26 +287,47 @@ function BookingModule() {
         const table = tables.find((t) => t.id === data.tableId);
         return { id: d.id, ...data, tableName: table ? table.name : data.tableId };
       });
+      myReservationsById = Object.fromEntries(items.map((r) => [r.id, r]));
       renderMyReservations(items);
     });
   }
 
   async function bookSlot(tableId, startTime, endTime) {
     const reservationId = `${tableId}_${currentDate}_${startTime}`;
+    const usageId = `${ctx.uid}_${currentDate}`;
+    const usageRef = doc(db, "dailyUsage", usageId);
+    const reservationRef = doc(db, "reservations", reservationId);
+
     try {
-      await setDoc(doc(db, "reservations", reservationId), {
-        uid: ctx.uid,
-        studentId: ctx.studentId,
-        name: ctx.name,
-        tableId,
-        date: currentDate,
-        startTime,
-        endTime,
-        status: "confirmed",
-        createdAt: serverTimestamp(),
+      await runTransaction(db, async (tx) => {
+        const usageSnap = await tx.get(usageRef);
+        const usedHours = usageSnap.exists() ? usageSnap.data().hours : 0;
+        if (usedHours >= DAILY_LIMIT_HOURS) {
+          throw new Error("DAILY_LIMIT_REACHED");
+        }
+
+        tx.set(reservationRef, {
+          uid: ctx.uid,
+          studentId: ctx.studentId,
+          name: ctx.name,
+          tableId,
+          date: currentDate,
+          startTime,
+          endTime,
+          status: "confirmed",
+          createdAt: serverTimestamp(),
+        });
+
+        if (usageSnap.exists()) {
+          tx.update(usageRef, { hours: usedHours + 1 });
+        } else {
+          tx.set(usageRef, { uid: ctx.uid, date: currentDate, hours: 1 });
+        }
       });
     } catch (err) {
-      if (err.code === "permission-denied") {
+      if (err.message === "DAILY_LIMIT_REACHED") {
+        alert(`하루 최대 ${DAILY_LIMIT_HOURS}시간까지만 예약할 수 있습니다.`);
+      } else if (err.code === "permission-denied") {
         alert("이미 다른 사람이 예약했거나 예약 권한이 없는 테이블입니다. 화면을 새로고침해 주세요.");
       } else {
         alert(`예약에 실패했습니다: ${err.message}`);
@@ -310,10 +335,21 @@ function BookingModule() {
     }
   }
 
-  async function cancelReservationById(reservationId) {
+  async function cancelReservation(reservation, reservationId) {
     if (!confirm("이 예약을 취소할까요?")) return;
+    const usageId = `${reservation.uid}_${reservation.date}`;
+    const usageRef = doc(db, "dailyUsage", usageId);
+    const reservationRef = doc(db, "reservations", reservationId);
+
     try {
-      await deleteDoc(doc(db, "reservations", reservationId));
+      await runTransaction(db, async (tx) => {
+        const usageSnap = await tx.get(usageRef);
+        tx.delete(reservationRef);
+        if (usageSnap.exists()) {
+          const remaining = Math.max(usageSnap.data().hours - 1, 0);
+          tx.update(usageRef, { hours: remaining });
+        }
+      });
     } catch (err) {
       alert(`취소에 실패했습니다: ${err.message}`);
     }
@@ -346,7 +382,7 @@ function BookingModule() {
         if (cancelBtn) {
           const key = cancelBtn.dataset.cancel;
           const reservation = reservationsByKey[key];
-          if (reservation) cancelReservationById(`${reservation.tableId}_${reservation.date}_${reservation.startTime}`);
+          if (reservation) cancelReservation(reservation, `${reservation.tableId}_${reservation.date}_${reservation.startTime}`);
         }
       });
     }
@@ -355,7 +391,10 @@ function BookingModule() {
     if (myListEl) {
       myListEl.addEventListener("click", (e) => {
         const btn = e.target.closest("[data-cancel-id]");
-        if (btn) cancelReservationById(btn.dataset.cancelId);
+        if (btn) {
+          const reservation = myReservationsById[btn.dataset.cancelId];
+          if (reservation) cancelReservation(reservation, btn.dataset.cancelId);
+        }
       });
     }
   }
@@ -375,6 +414,7 @@ function BookingModule() {
     unsubReservations = null;
     unsubMine = null;
     reservationsByKey = {};
+    myReservationsById = {};
     const loginRequired = $("#booking-login-required");
     const section = $("#booking-section");
     if (loginRequired) loginRequired.hidden = false;
