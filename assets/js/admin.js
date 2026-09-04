@@ -1,8 +1,8 @@
 // IDEA 사업단 관리자 페이지 — GitHub Contents API를 통해 data/news.json, data/archive.json,
 // assets/files/ 를 직접 커밋합니다. 토큰은 이 브라우저의 localStorage에만 저장되며 외부로 전송되지 않습니다.
 
-const REPO_OWNER = 'ideamyongji-admin';
-const REPO_NAME = 'ideamyongji-admin.github.io';
+const REPO_OWNER = 'ideamyongji';
+const REPO_NAME = 'ideamyongji.github.io';
 const BRANCH = 'main';
 const API_BASE = `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}`;
 const TOKEN_KEY = 'idea_admin_gh_token';
