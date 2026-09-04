@@ -3,10 +3,25 @@ document.addEventListener('DOMContentLoaded', () => {
   const toggle = document.querySelector('.nav-toggle');
   const nav = document.querySelector('.nav');
   if (toggle && nav) {
-    toggle.addEventListener('click', () => {
-      const open = nav.classList.toggle('nav--open');
+    if (!nav.id) nav.id = 'site-nav';
+    toggle.setAttribute('aria-controls', nav.id);
+
+    const setNav = (open) => {
+      nav.classList.toggle('nav--open', open);
       toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+      toggle.setAttribute('aria-label', open ? '메뉴 닫기' : '메뉴 열기');
+      // 메뉴가 자체 스크롤을 갖는 전체화면 패널이므로 배경 스크롤을 잠급니다
+      document.body.style.overflow = open ? 'hidden' : '';
+    };
+
+    toggle.addEventListener('click', () => setNav(!nav.classList.contains('nav--open')));
+    // 메뉴 안의 링크를 누르면(같은 페이지 해시 이동 포함) 닫습니다
+    nav.addEventListener('click', (e) => { if (e.target.closest('a')) setNav(false); });
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && nav.classList.contains('nav--open')) { setNav(false); toggle.focus(); }
     });
+    // 데스크톱 폭으로 돌아오면 열린 상태가 남아 배경 스크롤이 잠긴 채로 있을 수 있음
+    window.matchMedia('(min-width: 961px)').addEventListener('change', (e) => { if (e.matches) setNav(false); });
   }
 
   // 현재 페이지 기준 상단 메뉴 활성화 표시
@@ -49,6 +64,69 @@ document.addEventListener('DOMContentLoaded', () => {
       const name = location.hash.replace('#', '');
       if (panelNames.includes(name)) activateTab(name);
     });
+  }
+
+  // 히어로 사진 스트립: 세로로 천천히 흐르는 갤러리.
+  // 이음매 없이 반복하려면 이동 거리가 "그룹 1개 높이 + 간격"과 정확히 같아야 합니다.
+  // translateY(-50%) 같은 어림값은 gap 때문에 어긋나므로 실측해서 넣습니다.
+  const strip = document.querySelector('[data-hero-strip]');
+  if (strip) {
+    const track = strip.querySelector('.hero-strip-track');
+    const group = track.querySelector('.hero-strip-group');
+
+    // 모션 감소 설정에서는 흐르지 않고 손으로 훑어보는 목록이 되므로,
+    // 이음매용 복제분이 필요 없습니다(같은 사진이 두 번 나열되는 것 방지).
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+
+    const layout = () => {
+      track.querySelectorAll('.hero-strip-group').forEach((g, i) => { if (i > 0) g.remove(); });
+      if (reduceMotion.matches) { strip.classList.add('is-ready'); return; }
+      const gap = parseFloat(getComputedStyle(track).rowGap) || 0;
+      const shift = group.getBoundingClientRect().height + gap;
+      if (!shift) return;
+      // 복제분은 스크린리더가 사진 설명을 두 번 읽지 않도록 숨기고, 링크도 빼둡니다.
+      const twin = group.cloneNode(true);
+      twin.setAttribute('aria-hidden', 'true');
+      twin.querySelectorAll('a').forEach((a) => a.setAttribute('tabindex', '-1'));
+      track.appendChild(twin);
+      strip.style.setProperty('--strip-shift', shift + 'px');
+      // 사진 1장당 7.5초 속도로 맞춰, 장수가 늘어도 체감 속도가 같게 유지합니다.
+      const shots = group.querySelectorAll('.hero-shot').length || 1;
+      strip.style.setProperty('--strip-duration', (shots * 7.5) + 's');
+      strip.classList.add('is-ready');
+    };
+
+    // 사진이 실제로 로드된 뒤 높이를 재야 정확합니다.
+    const imgs = [...group.querySelectorAll('img')];
+    Promise.all(imgs.map((i) => i.complete ? null : new Promise((r) => {
+      i.addEventListener('load', r, { once: true });
+      i.addEventListener('error', r, { once: true });
+    }))).then(layout);
+
+    let stripTimer;
+    window.addEventListener('resize', () => {
+      clearTimeout(stripTimer);
+      stripTimer = setTimeout(layout, 200);
+    });
+
+    // WCAG 2.2.2 — 5초 넘게 자동으로 움직이는 콘텐츠에는 정지 수단이 있어야 합니다.
+    // (마우스 hover·키보드 포커스 정지는 CSS가 처리하지만, 터치 사용자에게는
+    //  명시적인 버튼이 필요합니다.)
+    if (!reduceMotion.matches) {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'hero-strip-toggle';
+      const icon = (name) =>
+        '<svg class="ic" aria-hidden="true" focusable="false"><use href="#i-' + name + '"></use></svg>';
+      const render = (paused) => {
+        btn.innerHTML = icon(paused ? 'play' : 'pause');
+        btn.setAttribute('aria-label', paused ? '사진 넘김 다시 시작' : '사진 넘김 일시정지');
+        btn.setAttribute('aria-pressed', paused ? 'true' : 'false');
+      };
+      render(false);
+      btn.addEventListener('click', () => render(strip.classList.toggle('is-paused')));
+      strip.appendChild(btn);
+    }
   }
 
   // 스크롤 시 헤더 그림자
@@ -119,9 +197,28 @@ document.addEventListener('DOMContentLoaded', () => {
   // 스크롤 연동 텍스트 리빌: 문단을 단어 단위로 쪼개서, 화면의 일정 지점을 지나면 하나씩 선명해짐
   const scrollTextEls = document.querySelectorAll('.scroll-reveal-text');
   if (scrollTextEls.length && !prefersReducedMotion) {
+    // 텍스트 노드만 골라 단어를 감쌉니다. el.innerHTML을 통째로 다시 쓰면
+    // 문단 안의 <strong>/<em> 같은 인라인 마크업이 사라지므로 그렇게 하지 않습니다.
+    const wrapWords = (root) => {
+      const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+      const textNodes = [];
+      while (walker.nextNode()) textNodes.push(walker.currentNode);
+      textNodes.forEach((node) => {
+        if (!node.nodeValue.trim()) return;
+        const frag = document.createDocumentFragment();
+        node.nodeValue.split(/(\s+)/).forEach((token) => {
+          if (!token) return;
+          if (!token.trim()) { frag.appendChild(document.createTextNode(token)); return; }
+          const span = document.createElement('span');
+          span.className = 'word';
+          span.textContent = token;
+          frag.appendChild(span);
+        });
+        node.parentNode.replaceChild(frag, node);
+      });
+    };
     const wordGroups = [...scrollTextEls].map((el) => {
-      const tokens = el.textContent.split(/(\s+)/);
-      el.innerHTML = tokens.map((t) => (t.trim() ? `<span class="word">${t}</span>` : t)).join('');
+      wrapWords(el);
       return [...el.querySelectorAll('.word')];
     });
 
@@ -152,17 +249,6 @@ document.addEventListener('DOMContentLoaded', () => {
         btn.style.transform = `translate(${relX * 0.25}px, ${relY * 0.35}px)`;
       });
       btn.addEventListener('mouseleave', () => { btn.style.transform = ''; });
-    });
-
-    // 카드 틸트: 마우스 위치에 따라 카드가 입체적으로 살짝 기울어짐
-    document.querySelectorAll('.card').forEach((card) => {
-      card.addEventListener('mousemove', (e) => {
-        const rect = card.getBoundingClientRect();
-        const px = (e.clientX - rect.left) / rect.width - 0.5;
-        const py = (e.clientY - rect.top) / rect.height - 0.5;
-        card.style.transform = `perspective(600px) rotateX(${-py * 6}deg) rotateY(${px * 6}deg) translateY(-4px)`;
-      });
-      card.addEventListener('mouseleave', () => { card.style.transform = ''; });
     });
   }
 });

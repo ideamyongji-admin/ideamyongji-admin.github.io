@@ -2,7 +2,10 @@
 // 같은 출처(GitHub Pages) 정적 파일만 캐시하고, Firebase/Google 등 외부 요청은
 // 절대 가로채지 않습니다 — Firestore 실시간 연결이 서비스 워커에 걸리면 깨지기 때문입니다.
 
-const CACHE_NAME = "idea-lounge-v2";
+// 앱 셸(style.css / main.js 포함)이 바뀌면 버전을 올려, activate 시 옛 캐시를 비우고
+// 오프라인용 사본이 새 배포와 일치하도록 합니다. (fetch는 네트워크 우선이므로
+// 온라인 사용자는 버전과 무관하게 항상 최신 파일을 받습니다.)
+const CACHE_NAME = "idea-lounge-v3";
 const APP_SHELL = [
   "/reserve.html",
   "/assets/css/style.css",

@@ -37,6 +37,14 @@ function skeletonGallery(n) {
 
 const IMAGE_EXT_RE = /\.(png|jpe?g|gif|webp|svg|avif)$/i;
 
+// 업로드 시 파일명 끝에 "_1600x1200"처럼 실제 픽셀 치수를 붙여둡니다(admin.js가 부여).
+// 이 값을 <img>의 width/height로 넘기면 브라우저가 로드 전에 비율을 알고 자리를 잡아,
+// 매소너리 컬럼이 사진 로드마다 재배치되는 현상(CLS)이 사라집니다.
+function sizeAttrs(path) {
+  const m = /_(\d{2,5})x(\d{2,5})\.[a-z0-9]+$/i.exec(path || '');
+  return m ? ` width="${m[1]}" height="${m[2]}"` : '';
+}
+
 // 업로드 시 파일명 앞에 붙는 "타임스탬프_" 접두어를 제거해 원래 파일명에 가깝게 표시
 function attachmentDisplayName(path) {
   return (path.split('/').pop() || path).replace(/^\d+_/, '');
@@ -54,8 +62,8 @@ function newsItemHTML(item, index) {
   let attachmentHtml = '';
   if (hasAttachment) {
     attachmentHtml = IMAGE_EXT_RE.test(item.attachment)
-      ? `<img src="${escapeHtml(item.attachment)}" alt="${escapeHtml(item.title)}" loading="lazy">`
-      : `<a class="btn btn--outline btn--sm" href="${escapeHtml(item.attachment)}" target="_blank" rel="noopener" style="margin-bottom:16px;">📎 ${escapeHtml(attachmentDisplayName(item.attachment))} 다운로드</a>`;
+      ? `<img src="${escapeHtml(item.attachment)}"${sizeAttrs(item.attachment)} alt="${escapeHtml(item.title)}" loading="lazy" decoding="async">`
+      : `<a class="btn btn--outline btn--sm" href="${escapeHtml(item.attachment)}" target="_blank" rel="noopener" style="margin-bottom:16px;"><svg class="ic ic--sm" aria-hidden="true" focusable="false"><use href="#i-clip"></use></svg>${escapeHtml(attachmentDisplayName(item.attachment))} 다운로드</a>`;
   }
   const textHtml = hasText ? formatContent(item.content) : '';
   return `
@@ -75,7 +83,7 @@ function archiveItemHTML(item) {
       <a href="${item.path}" class="news-item" target="_blank" rel="noopener">
         <span class="date">${escapeHtml(item.date)}</span>
         <div><span class="badge-cat">자료</span><h4>${escapeHtml(item.title)}</h4></div>
-        <span class="arrow" aria-label="다운로드">⬇</span>
+        <span class="arrow"><svg class="ic ic--sm" aria-hidden="true" focusable="false"><use href="#i-download"></use></svg><span class="sr-only">다운로드</span></span>
       </a>
     </div>`;
 }
@@ -91,7 +99,7 @@ function galleryItemHTML(item, index) {
   return `
     <button type="button" class="gallery-item${hasMultiple ? ' has-multiple' : ''}" data-gallery-index="${index}">
       <span class="gallery-media">
-        <img src="${escapeHtml(images[0] || '')}" alt="${escapeHtml(item.caption || item.date)}" loading="lazy">
+        <img src="${escapeHtml(images[0] || '')}"${sizeAttrs(images[0])} alt="${escapeHtml(item.caption || item.date)}" loading="lazy" decoding="async">
         <span class="gallery-overlay">
           <span class="tag tag--date">${escapeHtml(item.date)}</span>
           ${item.caption ? `<span class="tag tag--caption">${escapeHtml(item.caption)}</span>` : ''}
@@ -108,6 +116,9 @@ function initGalleryLightbox(grid, items) {
     box.id = 'gallery-lightbox';
     box.className = 'lightbox';
     box.hidden = true;
+    box.setAttribute('role', 'dialog');
+    box.setAttribute('aria-modal', 'true');
+    box.setAttribute('aria-label', '사진 크게 보기');
     box.innerHTML = `
       <button type="button" class="lightbox-close" aria-label="닫기">×</button>
       <button type="button" class="lightbox-prev" aria-label="이전 사진">‹</button>
@@ -135,17 +146,27 @@ function initGalleryLightbox(grid, items) {
     prevBtn.hidden = images.length <= 1;
     nextBtn.hidden = images.length <= 1;
   }
-  function open(newImages, newCaption, startIndex) {
+  // 닫을 때 원래 눌렀던 사진 버튼으로 포커스를 돌려주기 위해 기억합니다
+  let lastTrigger = null;
+
+  function open(newImages, newCaption, startIndex, trigger) {
     images = newImages;
     caption = newCaption;
     idx = startIndex || 0;
+    lastTrigger = trigger || null;
     render();
     box.hidden = false;
     document.body.style.overflow = 'hidden';
+    // 다음 프레임에 클래스를 붙여 opacity/scale 트랜지션이 실제로 재생되게 합니다
+    requestAnimationFrame(() => box.classList.add('is-open'));
+    box.querySelector('.lightbox-close').focus();
   }
   function close() {
+    box.classList.remove('is-open');
     box.hidden = true;
     document.body.style.overflow = '';
+    if (lastTrigger && document.contains(lastTrigger)) lastTrigger.focus();
+    lastTrigger = null;
   }
   function next() { idx = (idx + 1) % images.length; render(); }
   function prev() { idx = (idx - 1 + images.length) % images.length; render(); }
@@ -156,17 +177,37 @@ function initGalleryLightbox(grid, items) {
   prevBtn.addEventListener('click', prev);
   document.addEventListener('keydown', (e) => {
     if (box.hidden) return;
-    if (e.key === 'Escape') close();
-    if (e.key === 'ArrowRight') next();
-    if (e.key === 'ArrowLeft') prev();
+    if (e.key === 'Escape') { close(); return; }
+    if (e.key === 'ArrowRight') { next(); return; }
+    if (e.key === 'ArrowLeft') { prev(); return; }
+    // 포커스 트랩: 오버레이가 열려 있는 동안 Tab이 뒤쪽 페이지로 새어나가지 않게 합니다
+    if (e.key === 'Tab') {
+      const focusables = [...box.querySelectorAll('button')].filter((b) => !b.hidden);
+      if (!focusables.length) return;
+      const first = focusables[0];
+      const last = focusables[focusables.length - 1];
+      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+    }
   });
+
+  // 모바일 스와이프로 사진 넘기기 (양 끝 버튼만으로는 한 손 조작이 어려움)
+  let touchX = null;
+  box.addEventListener('touchstart', (e) => { touchX = e.changedTouches[0].clientX; }, { passive: true });
+  box.addEventListener('touchend', (e) => {
+    if (touchX === null || images.length <= 1) return;
+    const dx = e.changedTouches[0].clientX - touchX;
+    touchX = null;
+    if (Math.abs(dx) < 45) return;
+    if (dx < 0) next(); else prev();
+  }, { passive: true });
 
   grid.addEventListener('click', (e) => {
     const btn = e.target.closest('[data-gallery-index]');
     if (!btn) return;
     const item = items[Number(btn.dataset.galleryIndex)];
     if (!item) return;
-    open(galleryItemImages(item), item.caption || '', 0);
+    open(galleryItemImages(item), item.caption || '', 0, btn);
   });
 }
 
@@ -199,7 +240,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     try {
       const items = sortByDateDesc(await loadJSON('data/news.json'));
       previewList.innerHTML = items.slice(0, 3).map(newsItemHTML).join('') ||
-        '<p style="color: var(--ink-500); text-align: center; padding: 24px 0;">등록된 소식이 없습니다.</p>';
+        '<p class="list-empty">등록된 소식이 없습니다.</p>';
     } catch (e) {
       previewList.innerHTML = '';
     }
@@ -212,7 +253,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       noticeList.innerHTML = items.length ? items.map(newsItemHTML).join('') : '';
       if (noticeEmpty) noticeEmpty.hidden = items.length > 0;
     } catch (e) {
-      noticeList.innerHTML = '<p style="color: var(--ink-500); text-align: center; padding: 40px 0;">공지사항을 불러오지 못했습니다.</p>';
+      noticeList.innerHTML = '<p class="list-empty">공지사항을 불러오지 못했습니다.</p>';
     }
   }
 
@@ -227,7 +268,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         archiveEmpty.hidden = false;
       }
     } catch (e) {
-      archiveList.innerHTML = '<p style="color: var(--ink-500); text-align: center; padding: 40px 0;">자료실을 불러오지 못했습니다.</p>';
+      archiveList.innerHTML = '<p class="list-empty">자료실을 불러오지 못했습니다.</p>';
     }
   }
 
@@ -243,7 +284,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         galleryEmpty.hidden = false;
       }
     } catch (e) {
-      galleryList.innerHTML = '<p style="color: var(--ink-500); text-align: center; padding: 40px 0; grid-column: 1/-1;">포토갤러리를 불러오지 못했습니다.</p>';
+      galleryList.innerHTML = '<p class="list-empty">포토갤러리를 불러오지 못했습니다.</p>';
     }
   }
 });

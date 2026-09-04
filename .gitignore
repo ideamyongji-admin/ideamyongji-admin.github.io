@@ -2,3 +2,7 @@ server.log
 .DS_Store
 Thumbs.db
 .claude/scheduled_tasks.lock
+
+# 라운지 사진 원본(2.7MB). 웹에는 assets/images/lounge/idea-lounge_*.{jpg,webp} 만
+# 사용하므로, 원본은 로컬에만 두고 저장소에 커밋하지 않습니다.
+assets/images/lounge/IDEA lounge.jpg
