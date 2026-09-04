@@ -178,10 +178,14 @@ h1, h2, h3, h4 { margin: 0; color: var(--ink-900); font-weight: 800; letter-spac
 .dropdown a { display: block; padding: 10px 14px; border-radius: 8px; font-size: 14.5px; font-weight: 600; color: var(--ink-700); }
 .dropdown a:hover { background: var(--bg-soft-2); color: var(--blue); }
 
-.header-actions { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+.header-actions { display: flex; align-items: center; gap: 14px; flex-shrink: 0; }
 .header-actions .tag {
   font-size: 12px; font-weight: 700; color: var(--teal); background: rgba(22,160,133,.09);
   border: 1px solid rgba(22,160,133,.22); padding: 6px 12px; border-radius: 999px;
+}
+.mju-badge { height: 30px; width: auto; display: block; }
+@media (max-width: 600px) {
+  .mju-badge { display: none; }
 }
 
 .nav-toggle { display: none; width: 40px; height: 40px; align-items: center; justify-content: center; border: 1px solid var(--border); border-radius: 10px; background: #fff; }
@@ -509,6 +513,11 @@ button.news-item.is-button[aria-expanded="true"] .arrow { transform: rotate(90de
 .site-footer { background: var(--ink-900); color: rgba(255,255,255,.68); padding: 64px 0 28px; }
 .footer-top { display: grid; grid-template-columns: 1.4fr 1fr 1fr 1fr; gap: 40px; padding-bottom: 40px; border-bottom: 1px solid rgba(255,255,255,.1); }
 .footer-brand img { height: 32px; margin-bottom: 16px; }
+.mju-affiliate {
+  display: inline-flex; align-items: center; background: #fff; border-radius: 8px;
+  padding: 7px 14px; margin: -4px 0 18px;
+}
+.mju-affiliate img { height: 20px; width: auto; display: block; margin: 0; }
 .footer-brand p { font-size: 13.5px; line-height: 1.7; max-width: 320px; }
 .footer-col h5 { color: #fff; font-size: 13.5px; margin-bottom: 16px; letter-spacing: .02em; }
 .footer-col ul { display: flex; flex-direction: column; gap: 10px; }
