@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>IDEA 라운지 예약 | IDEA 사업단</title>
+<meta name="description" content="IDEA 라운지(1공학관 513호) 테이블 예약 시스템입니다.">
+<link rel="icon" href="assets/img/favicon.ico" sizes="any">
+<link rel="icon" type="image/png" href="assets/img/favicon-32.png" sizes="32x32">
+<link rel="apple-touch-icon" href="assets/img/apple-touch-icon.png">
+<link rel="stylesheet" href="assets/css/style.css">
+</head>
+<body>
+
+<header class="site-header">
+  <div class="container header-inner">
+    <a href="index.html" class="brand">
+      <img src="assets/img/logo-mark.png" alt="IDEA 사업단 로고">
+      <div class="brand-text">
+        <b>IDEA 사업단</b>
+        <span>인공지능 융합 디자인-엔지니어링 사업단</span>
+      </div>
+    </a>
+    <ul class="nav">
+      <li><a href="about.html">사업단소개</a>
+        <ul class="dropdown">
+          <li><a href="about.html#vision">비전과 목표</a></li>
+          <li><a href="about.html#need">추진 필요성</a></li>
+          <li><a href="about.html#align">대학발전계획 연계</a></li>
+          <li><a href="people.html">참여인력</a></li>
+        </ul>
+      </li>
+      <li><a href="programs.html">특성화계획</a>
+        <ul class="dropdown">
+          <li><a href="programs.html#micro">마이크로디그리</a></li>
+          <li><a href="programs.html#program">4대 핵심 프로그램</a></li>
+          <li><a href="career.html#career">진로지도계획</a></li>
+          <li><a href="career.html#industry">산학협력계획</a></li>
+        </ul>
+      </li>
+      <li><a href="news.html">사업단소식</a>
+        <ul class="dropdown">
+          <li><a href="news.html#notice">공지사항</a></li>
+          <li><a href="news.html#archive">자료실</a></li>
+        </ul>
+      </li>
+      <li class="active"><a href="reserve.html">라운지 예약</a></li>
+      <li><a href="contact.html">오시는길</a></li>
+    </ul>
+    <div class="header-actions">
+      <span class="tag">2026 대학혁신지원사업 자율형 특성화사업단</span>
+      <button class="nav-toggle" aria-label="메뉴 열기" aria-expanded="false"><span></span></button>
+    </div>
+  </div>
+</header>
+
+<section class="page-hero">
+  <div class="container">
+    <h1>IDEA 라운지 예약</h1>
+    <p>1공학관 513호 · 팀별 활동 공간 · 테이블 4개(테이블당 4인)</p>
+  </div>
+</section>
+
+<section class="section--tight">
+  <div class="container">
+
+    <div id="login-panel" class="card" style="max-width:440px; margin: 0 auto 48px;">
+      <h3 style="font-size:16px; margin-bottom:8px;">Google 계정으로 로그인</h3>
+      <p style="font-size:13.5px; color:var(--ink-500); margin-bottom:16px;">
+        로그인 후 학번을 등록하면 예약을 이용할 수 있습니다.
+      </p>
+      <div id="login-status" class="status-msg"></div>
+      <button id="google-login-btn" type="button" class="btn btn--primary">Google 계정으로 로그인</button>
+    </div>
+
+    <div id="profile-panel" class="card" style="max-width:440px; margin: 0 auto 48px;" hidden>
+      <h3 style="font-size:16px; margin-bottom:8px;">학번 등록</h3>
+      <p style="font-size:13.5px; color:var(--ink-500); margin-bottom:16px;">
+        예약 이용을 위해 학번과 이름을 등록해 주세요. 마이크로디그리 참여 학생 명단과 대조해 우선권 여부를 확인합니다.
+      </p>
+      <div id="profile-status" class="status-msg"></div>
+      <form id="profile-form">
+        <div class="field">
+          <label for="profile-student-id">학번</label>
+          <input type="text" id="profile-student-id" placeholder="예: 20231234" required>
+        </div>
+        <div class="field">
+          <label for="profile-name">이름</label>
+          <input type="text" id="profile-name" placeholder="홍길동" required>
+        </div>
+        <button type="submit" class="btn btn--primary">등록하기</button>
+      </form>
+    </div>
+
+    <div id="user-panel" class="card" style="max-width:440px; margin: 0 auto 48px;" hidden>
+      <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;">
+        <div>
+          <p style="font-size:13px; color:var(--ink-500); margin-bottom:4px;">로그인됨</p>
+          <p id="user-name" style="font-weight:700;"></p>
+          <p id="user-student-id" style="font-size:13px; color:var(--ink-500);"></p>
+          <span id="priority-badge" class="tag" style="margin-top:8px; display:inline-block;" hidden>마이크로디그리 우선권 회원</span>
+        </div>
+        <button id="logout-btn" type="button" class="btn btn--outline btn--sm">로그아웃</button>
+      </div>
+    </div>
+
+    <div class="section-head" style="margin-bottom:32px;">
+      <span class="eyebrow"><span class="dot"></span>테이블 현황</span>
+      <h2>IDEA 라운지 테이블</h2>
+      <p>테이블1~3은 &quot;AI 디자인-엔지니어링&quot; 마이크로디그리 참여 학생 전용, 테이블4는 전체 학생이 이용할 수 있습니다. 예약 생성 기능은 다음 단계에서 추가될 예정입니다.</p>
+    </div>
+
+    <div id="tables-list" class="grid grid--4">
+      <p style="color: var(--ink-500); grid-column:1/-1; text-align:center; padding: 40px 0;">불러오는 중입니다…</p>
+    </div>
+
+  </div>
+</section>
+
+<footer class="site-footer">
+  <div class="container">
+    <div class="footer-top">
+      <div class="footer-brand">
+        <img src="assets/img/logo-lockup-dark.png" alt="IDEA 사업단">
+        <p>인공지능 융합 디자인-엔지니어링 사업단(IDEA)은 명지대학교 산업경영공학과·비주얼커뮤니케이션디자인학과·인더스트리얼디자인학과가 함께하는 교내 자율형 특성화사업단입니다.</p>
+      </div>
+      <div class="footer-col">
+        <h5>사업단소개</h5>
+        <ul>
+          <li><a href="about.html">비전과 목표</a></li>
+          <li><a href="about.html#need">추진 필요성</a></li>
+          <li><a href="people.html">참여인력</a></li>
+        </ul>
+      </div>
+      <div class="footer-col">
+        <h5>특성화계획</h5>
+        <ul>
+          <li><a href="programs.html">마이크로디그리</a></li>
+          <li><a href="career.html">진로·산학협력</a></li>
+        </ul>
+      </div>
+      <div class="footer-col">
+        <h5>바로가기</h5>
+        <ul>
+          <li><a href="reserve.html">라운지 예약</a></li>
+          <li><a href="news.html">사업단소식</a></li>
+          <li><a href="contact.html">오시는 길</a></li>
+          <li><a href="https://www.mju.ac.kr" target="_blank" rel="noopener">명지대학교</a></li>
+        </ul>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <div class="badges">
+        <img src="assets/img/innovation-badge.png" alt="대학혁신지원사업">
+      </div>
+      <small>© 2026 명지대학교 IDEA 사업단(인공지능 융합 디자인-엔지니어링 사업단). All rights reserved.</small>
+    </div>
+  </div>
+</footer>
+
+<script src="assets/js/main.js"></script>
+<script type="module" src="assets/js/reserve.js"></script>
+</body>
+</html>
