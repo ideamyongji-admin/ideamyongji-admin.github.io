@@ -121,6 +121,7 @@
       <ul>
         <li><a href="#notice" class="tab-link active" data-tab="notice">공지사항 관리</a></li>
         <li><a href="#archive" class="tab-link" data-tab="archive">자료실 관리</a></li>
+        <li><a href="#gallery" class="tab-link" data-tab="gallery">포토갤러리 관리</a></li>
       </ul>
     </nav>
 
@@ -201,6 +202,35 @@
         <div class="card">
           <h3 style="font-size:16px; margin-bottom:8px;">등록된 자료</h3>
           <div id="archive-admin-list"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="tab-panel" data-panel="gallery" hidden>
+      <div class="grid grid--2">
+        <div class="card">
+          <h3 style="font-size:16px; margin-bottom:16px;">새 사진 등록</h3>
+          <p class="field hint" style="margin-top:-8px; margin-bottom:16px;">이미지 파일만 업로드할 수 있으며, 최대 100MB까지 가능합니다.</p>
+          <div id="gallery-status" class="status-msg"></div>
+          <form id="gallery-form">
+            <div class="field">
+              <label for="gallery-date">날짜</label>
+              <input type="date" id="gallery-date" required>
+            </div>
+            <div class="field">
+              <label for="gallery-caption">설명 <span class="hint">(선택)</span></label>
+              <input type="text" id="gallery-caption" placeholder="예: 2026 IDEA 미니 해커톤 현장">
+            </div>
+            <div class="field">
+              <label for="gallery-image">사진 파일</label>
+              <input type="file" id="gallery-image" accept="image/*" required>
+            </div>
+            <button type="submit" class="btn btn--primary">게시하기</button>
+          </form>
+        </div>
+        <div class="card">
+          <h3 style="font-size:16px; margin-bottom:8px;">등록된 사진</h3>
+          <div id="gallery-admin-list"></div>
         </div>
       </div>
     </div>

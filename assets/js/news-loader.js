@@ -59,6 +59,17 @@ function archiveItemHTML(item) {
     </div>`;
 }
 
+function galleryItemHTML(item) {
+  return `
+    <a class="gallery-item" href="${escapeHtml(item.image)}" target="_blank" rel="noopener">
+      <img src="${escapeHtml(item.image)}" alt="${escapeHtml(item.caption || item.date)}" loading="lazy">
+      <div class="gallery-caption">
+        <span class="date">${escapeHtml(item.date)}</span>
+        ${item.caption ? `<p>${escapeHtml(item.caption)}</p>` : ''}
+      </div>
+    </a>`;
+}
+
 async function loadJSON(path) {
   const res = await fetch(path, { cache: 'no-store' });
   if (!res.ok) throw new Error('failed to load ' + path);
@@ -81,6 +92,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   const archiveEmpty = document.querySelector('[data-empty="archive"]');
   const noticeEmpty = document.querySelector('[data-empty="notice"]');
   const previewList = document.querySelector('[data-list="notice-preview"]');
+  const galleryList = document.querySelector('[data-list="gallery"]');
+  const galleryEmpty = document.querySelector('[data-empty="gallery"]');
 
   if (previewList) {
     try {
@@ -113,6 +126,20 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
     } catch (e) {
       archiveList.innerHTML = '<p style="color: var(--ink-500); text-align: center; padding: 40px 0;">자료실을 불러오지 못했습니다.</p>';
+    }
+  }
+
+  if (galleryList) {
+    try {
+      const items = sortByDateDesc(await loadJSON('data/gallery.json'));
+      if (items.length) {
+        galleryList.innerHTML = items.map(galleryItemHTML).join('');
+        if (galleryEmpty) galleryEmpty.hidden = true;
+      } else if (galleryEmpty) {
+        galleryEmpty.hidden = false;
+      }
+    } catch (e) {
+      galleryList.innerHTML = '<p style="color: var(--ink-500); text-align: center; padding: 40px 0; grid-column: 1/-1;">포토갤러리를 불러오지 못했습니다.</p>';
     }
   }
 });

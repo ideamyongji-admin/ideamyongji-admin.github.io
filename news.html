@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>사업단소식 | IDEA 사업단</title>
-<meta name="description" content="IDEA 사업단의 공지사항과 자료실을 확인하세요.">
+<meta name="description" content="IDEA 사업단의 공지사항, 자료실, 포토갤러리를 확인하세요.">
 <link rel="icon" href="assets/img/favicon.ico" sizes="any">
 <link rel="icon" type="image/png" href="assets/img/favicon-32.png" sizes="32x32">
 <link rel="apple-touch-icon" href="assets/img/apple-touch-icon.png">
@@ -42,6 +42,7 @@
         <ul class="dropdown">
           <li><a href="news.html#notice">공지사항</a></li>
           <li><a href="news.html#archive">자료실</a></li>
+          <li><a href="news.html#gallery">포토갤러리</a></li>
         </ul>
       </li>
       <li><a href="reserve.html">라운지 예약</a></li>
@@ -79,6 +80,7 @@
     <ul>
       <li><a href="#notice" class="tab-link active" data-tab="notice">공지사항</a></li>
       <li><a href="#archive" class="tab-link" data-tab="archive">자료실</a></li>
+      <li><a href="#gallery" class="tab-link" data-tab="gallery">포토갤러리</a></li>
     </ul>
   </div>
 </nav>
@@ -96,6 +98,11 @@
     <div class="tab-panel" data-panel="archive" hidden>
       <div class="news-list" data-list="archive"></div>
       <p data-empty="archive" hidden style="color: var(--ink-500); text-align: center; padding: 40px 0;">등록된 자료가 없습니다. 자료가 등록되면 이곳에 표시됩니다.</p>
+    </div>
+
+    <div class="tab-panel" data-panel="gallery" hidden>
+      <div class="gallery-grid" data-list="gallery"></div>
+      <p data-empty="gallery" hidden style="color: var(--ink-500); text-align: center; padding: 40px 0;">등록된 사진이 없습니다. 행사 사진이 등록되면 이곳에 표시됩니다.</p>
     </div>
 
   </div>

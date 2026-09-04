@@ -264,6 +264,50 @@ async function deleteArchive(index) {
   }
 }
 
+// ---------- 포토갤러리 ----------
+
+async function renderGalleryList() {
+  const listEl = $('#gallery-admin-list');
+  listEl.innerHTML = '<p style="color:var(--ink-500);">불러오는 중…</p>';
+  try {
+    const { content } = await getJSONFile('data/gallery.json');
+    if (!content.length) {
+      listEl.innerHTML = '<p style="color:var(--ink-500);">등록된 사진이 없습니다.</p>';
+      return;
+    }
+    listEl.innerHTML = content.map((item, i) => `
+      <div class="admin-row">
+        <div>
+          <div class="title">${item.caption || '(설명 없음)'}</div>
+          <div class="meta">${item.date}</div>
+        </div>
+        <button class="btn btn--danger btn--sm" data-delete-gallery="${i}">삭제</button>
+      </div>
+    `).join('');
+  } catch (e) {
+    listEl.innerHTML = `<p style="color:#d92d20;">${e.message}</p>`;
+  }
+}
+
+async function addGalleryPhoto(date, caption, file) {
+  const image = await uploadFileAndGetPath(file, 'assets/images/gallery', `포토갤러리 사진 업로드: ${caption || date}`);
+  const { sha, content } = await getJSONFile('data/gallery.json');
+  content.unshift({ date, caption: caption || '', image });
+  await putJSONFile('data/gallery.json', content, sha, `포토갤러리 등록: ${caption || date}`);
+}
+
+async function deleteGalleryPhoto(index) {
+  const { sha, content } = await getJSONFile('data/gallery.json');
+  const removed = content.splice(index, 1)[0];
+  await putJSONFile('data/gallery.json', content, sha, `포토갤러리 삭제: ${removed ? (removed.caption || removed.date) : ''}`);
+  if (removed && removed.image) {
+    try {
+      const fileData = await gh(`/contents/${removed.image}?ref=${BRANCH}`);
+      if (fileData) await deleteFile(removed.image, fileData.sha, `포토갤러리 사진 삭제: ${removed.caption || removed.date}`);
+    } catch (e) { /* 파일 삭제 실패는 무시 (목록에서는 이미 제거됨) */ }
+  }
+}
+
 // ---------- 초기화 ----------
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -282,6 +326,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     tokenStatus.textContent = '토큰이 저장되었습니다. (이 브라우저에만 저장됩니다)';
     renderNoticeList();
     renderArchiveList();
+    renderGalleryList();
   });
 
   $('#clear-token').addEventListener('click', () => {
@@ -431,6 +476,47 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   });
 
+  const galleryForm = $('#gallery-form');
+  const galleryStatus = $('#gallery-status');
+  galleryForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    hideStatus(galleryStatus);
+    const date = $('#gallery-date').value.replace(/-/g, '.');
+    const caption = $('#gallery-caption').value.trim();
+    const file = $('#gallery-image').files[0];
+    if (!date || !file) { showStatus(galleryStatus, '날짜와 사진 파일을 선택하세요.', 'error'); return; }
+    if (file.size > MAX_UPLOAD_BYTES) {
+      showStatus(galleryStatus, `파일 용량이 너무 큽니다. GitHub API 제한으로 ${Math.floor(MAX_UPLOAD_BYTES / 1024 / 1024)}MB 이하만 업로드할 수 있습니다.`, 'error');
+      return;
+    }
+    const btn = galleryForm.querySelector('button[type="submit"]');
+    btn.disabled = true; btn.textContent = '업로드 중…';
+    try {
+      await addGalleryPhoto(date, caption, file);
+      showStatus(galleryStatus, '사진이 등록되었습니다. 30~60초 후 사이트에 반영됩니다.', 'success');
+      galleryForm.reset();
+      await renderGalleryList();
+    } catch (err) {
+      showStatus(galleryStatus, err.message, 'error');
+    } finally {
+      btn.disabled = false; btn.textContent = '게시하기';
+    }
+  });
+
+  $('#gallery-admin-list').addEventListener('click', async (e) => {
+    const btn = e.target.closest('[data-delete-gallery]');
+    if (!btn) return;
+    if (!confirm('이 사진을 삭제할까요?')) return;
+    btn.disabled = true;
+    try {
+      await deleteGalleryPhoto(Number(btn.dataset.deleteGallery));
+      await renderGalleryList();
+    } catch (err) {
+      alert(err.message);
+      btn.disabled = false;
+    }
+  });
+
   $$('.tab-link').forEach((link) => {
     link.addEventListener('click', (e) => {
       e.preventDefault();
@@ -449,6 +535,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     $('#lock-now').hidden = false;
     renderNoticeList();
     renderArchiveList();
+    renderGalleryList();
   }
 
   $('#lock-now').addEventListener('click', () => {
