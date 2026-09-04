@@ -14,6 +14,27 @@ function formatContent(content) {
     .join('');
 }
 
+function skeletonRows(n) {
+  return Array.from({ length: n }, () => `
+    <div class="news-entry">
+      <div class="news-item" style="pointer-events:none;">
+        <span class="skeleton" style="width:60px; height:12px; border-radius:4px;"></span>
+        <div style="flex:1; display:flex; flex-direction:column; gap:8px; min-width:0;">
+          <span class="skeleton" style="width:44px; height:11px; border-radius:4px;"></span>
+          <span class="skeleton" style="width:55%; height:16px; border-radius:4px;"></span>
+        </div>
+      </div>
+    </div>`).join('');
+}
+
+function skeletonGallery(n) {
+  const heights = [300, 380, 220, 340, 260, 400];
+  return Array.from({ length: n }, (_, i) => `
+    <div class="gallery-item" style="pointer-events:none;">
+      <span class="skeleton" style="display:block; width:100%; height:${heights[i % heights.length]}px; border-radius: var(--radius-md);"></span>
+    </div>`).join('');
+}
+
 const IMAGE_EXT_RE = /\.(png|jpe?g|gif|webp|svg|avif)$/i;
 
 // 업로드 시 파일명 앞에 붙는 "타임스탬프_" 접두어를 제거해 원래 파일명에 가깝게 표시
@@ -185,6 +206,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   if (noticeList) {
+    noticeList.innerHTML = skeletonRows(3);
     try {
       const items = sortByDateDesc(await loadJSON('data/news.json'));
       noticeList.innerHTML = items.length ? items.map(newsItemHTML).join('') : '';
@@ -195,6 +217,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   if (archiveList) {
+    archiveList.innerHTML = skeletonRows(3);
     try {
       const items = await loadJSON('data/archive.json');
       if (items.length) {
@@ -209,6 +232,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   if (galleryList) {
+    galleryList.innerHTML = skeletonGallery(6);
     try {
       const items = sortByDateDesc(await loadJSON('data/gallery.json'));
       if (items.length) {

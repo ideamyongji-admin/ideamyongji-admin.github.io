@@ -51,6 +51,18 @@ document.addEventListener('DOMContentLoaded', () => {
     }, { passive: true });
   }
 
+  // 맨 위로 가기 버튼 (일정 이상 스크롤하면 나타남)
+  const scrollTopBtn = document.createElement('button');
+  scrollTopBtn.type = 'button';
+  scrollTopBtn.className = 'scroll-top-btn';
+  scrollTopBtn.setAttribute('aria-label', '맨 위로 가기');
+  scrollTopBtn.textContent = '↑';
+  document.body.appendChild(scrollTopBtn);
+  window.addEventListener('scroll', () => {
+    scrollTopBtn.classList.toggle('show', window.scrollY > 480);
+  }, { passive: true });
+  scrollTopBtn.addEventListener('click', () => window.scrollTo({ top: 0, behavior: 'smooth' }));
+
   // 숫자 카운트업 ("409명" → 0에서 409까지 세어 올라감)
   function animateCountUp(el) {
     const raw = el.textContent.trim();

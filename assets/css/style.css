@@ -42,6 +42,11 @@
 html { scroll-behavior: smooth; }
 [hidden] { display: none !important; }
 
+/* 키보드로 탐색할 때(마우스 클릭 시에는 뜨지 않음) 지금 어디에 있는지 명확히 보이도록 */
+:focus-visible { outline: 2px solid var(--blue); outline-offset: 3px; border-radius: 4px; }
+.btn:focus-visible { outline-offset: 2px; }
+.gallery-item:focus-visible .gallery-media { outline: 2px solid var(--blue); outline-offset: 2px; }
+
 body {
   margin: 0;
   font-family: "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont,
@@ -520,6 +525,34 @@ button.news-item.is-button[aria-expanded="true"] .arrow { transform: rotate(90de
   backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px);
   border: 1px solid rgba(255,255,255,.5);
   box-shadow: var(--shadow-lg);
+}
+
+/* ---------- 로딩 스켈레톤 ---------- */
+.skeleton { position: relative; overflow: hidden; background: var(--bg-soft-2); display: inline-block; }
+.skeleton::after {
+  content: ""; position: absolute; inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,.7), transparent);
+  transform: translateX(-100%); animation: skeleton-shimmer 1.4s ease-in-out infinite;
+}
+@keyframes skeleton-shimmer { to { transform: translateX(100%); } }
+@media (prefers-reduced-motion: reduce) {
+  .skeleton::after { animation: none; }
+}
+
+/* ---------- 맨 위로 가기 버튼 ---------- */
+.scroll-top-btn {
+  position: fixed; right: 24px; bottom: 24px; z-index: 500;
+  width: 46px; height: 46px; border-radius: 999px; border: 1px solid var(--border);
+  background: rgba(255,255,255,.85); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+  color: var(--ink-700); font-size: 18px; display: flex; align-items: center; justify-content: center;
+  cursor: pointer; box-shadow: var(--shadow-md); padding: 0;
+  opacity: 0; visibility: hidden; translate: 0 12px;
+  transition: opacity .25s ease, translate .25s ease, visibility .25s, background .2s ease, color .2s ease, border-color .2s ease;
+}
+.scroll-top-btn.show { opacity: 1; visibility: visible; translate: 0 0; }
+.scroll-top-btn:hover { background: var(--blue); color: #fff; border-color: var(--blue); }
+@media (max-width: 600px) {
+  .scroll-top-btn { right: 16px; bottom: 16px; width: 42px; height: 42px; }
 }
 
 /* ---------- 스크롤 리빌 ---------- */
