@@ -218,6 +218,15 @@ function BookingModule() {
   let myReservationsById = {}; // reservationId -> reservation data
   let ctx = { uid: null, studentId: null, name: null, isPriority: false };
 
+  // 예약 가능한 날짜 구간(오늘 ~ BOOKING_WINDOW_DAYS일 후). 매 호출마다 "오늘"을 다시
+  // 계산하므로 날짜가 바뀌어도 항상 최신 구간을 돌려줍니다.
+  function windowBounds() {
+    const today = new Date();
+    const max = new Date();
+    max.setDate(today.getDate() + BOOKING_WINDOW_DAYS);
+    return { min: localDateStr(today), max: localDateStr(max) };
+  }
+
   function slotButtonHTML(table, slot) {
     const key = `${table.id}_${slot.start}`;
     const reservation = reservationsByKey[key];
@@ -311,14 +320,16 @@ function BookingModule() {
   // myReservationsById는 실시간 구독으로 항상 최신 상태이므로, 지난 날짜는 자연히
   // 범위에서 빠지고(=롤링 윈도우) 매일 자동으로 한도가 갱신됩니다.
   function windowHoursUsed() {
-    const today = localDateStr(new Date());
-    const windowEnd = localDateStr(
-      new Date(new Date().setDate(new Date().getDate() + BOOKING_WINDOW_DAYS))
-    );
-    return Object.values(myReservationsById).filter((r) => r.date >= today && r.date <= windowEnd).length;
+    const { min, max } = windowBounds();
+    return Object.values(myReservationsById).filter((r) => r.date >= min && r.date <= max).length;
   }
 
   async function bookSlot(tableId, startTime, endTime, btnEl) {
+    const { min, max } = windowBounds();
+    if (currentDate < min || currentDate > max) {
+      showToast("예약 가능한 날짜(오늘부터 2주 이내)가 아닙니다. 화면을 새로고침해 주세요.", "error");
+      return;
+    }
     if (windowHoursUsed() >= WINDOW_LIMIT_HOURS) {
       showToast(`예약 가능한 2주 내에는 최대 ${WINDOW_LIMIT_HOURS}시간까지만 예약할 수 있습니다.`, "error");
       return;
@@ -395,15 +406,20 @@ function BookingModule() {
   function initInteractions(getTables) {
     const dateInput = $("#booking-date");
     if (dateInput) {
-      const today = new Date();
-      const max = new Date();
-      max.setDate(today.getDate() + BOOKING_WINDOW_DAYS);
-      dateInput.min = localDateStr(today);
-      dateInput.max = localDateStr(max);
-      if (!dateInput.value) dateInput.value = localDateStr(today);
-      dateInput.addEventListener("change", () => {
-        subscribeDate(dateInput.value || localDateStr(today), getTables());
-      });
+      const { min, max } = windowBounds();
+      dateInput.min = min;
+      dateInput.max = max;
+      if (!dateInput.value) dateInput.value = min;
+
+      // 일부 모바일 브라우저의 네이티브 날짜 선택기는 min/max 속성을 강제하지 않으므로,
+      // 선택된 값을 항상 예약 가능 구간으로 다시 한 번 잘라냅니다.
+      const clampDate = () => {
+        const { min: curMin, max: curMax } = windowBounds();
+        if (!dateInput.value || dateInput.value < curMin) dateInput.value = curMin;
+        else if (dateInput.value > curMax) dateInput.value = curMax;
+        subscribeDate(dateInput.value, getTables());
+      };
+      dateInput.addEventListener("change", clampDate);
     }
 
     const gridWrap = $("#booking-grid-wrap");

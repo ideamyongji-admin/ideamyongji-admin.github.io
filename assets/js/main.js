@@ -92,4 +92,67 @@ document.addEventListener('DOMContentLoaded', () => {
       revealTargets.forEach((el) => el.classList.add('is-revealed'));
     }
   }
+
+  const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const canHover = window.matchMedia('(hover: hover)').matches;
+
+  // Lenis 부드러운 스크롤 (라이브러리가 로드된 페이지에서만 동작)
+  if (typeof window.Lenis !== 'undefined' && !prefersReducedMotion) {
+    const lenis = new window.Lenis({ duration: 1.1, smoothWheel: true });
+    function raf(time) {
+      lenis.raf(time);
+      requestAnimationFrame(raf);
+    }
+    requestAnimationFrame(raf);
+  }
+
+  // 스크롤 연동 텍스트 리빌: 문단을 단어 단위로 쪼개서, 화면의 일정 지점을 지나면 하나씩 선명해짐
+  const scrollTextEls = document.querySelectorAll('.scroll-reveal-text');
+  if (scrollTextEls.length && !prefersReducedMotion) {
+    const wordGroups = [...scrollTextEls].map((el) => {
+      const tokens = el.textContent.split(/(\s+)/);
+      el.innerHTML = tokens.map((t) => (t.trim() ? `<span class="word">${t}</span>` : t)).join('');
+      return [...el.querySelectorAll('.word')];
+    });
+
+    let ticking = false;
+    const updateWords = () => {
+      const line = window.innerHeight * 0.72;
+      wordGroups.forEach((words) => {
+        words.forEach((w) => w.classList.toggle('is-lit', w.getBoundingClientRect().top < line));
+      });
+      ticking = false;
+    };
+    updateWords();
+    window.addEventListener('scroll', () => {
+      if (ticking) return;
+      ticking = true;
+      requestAnimationFrame(updateWords);
+    }, { passive: true });
+    window.addEventListener('resize', updateWords);
+  }
+
+  // 매그네틱 버튼: 마우스를 가져가면 버튼이 커서 쪽으로 살짝 끌려옴
+  if (canHover && !prefersReducedMotion) {
+    document.querySelectorAll('.btn').forEach((btn) => {
+      btn.addEventListener('mousemove', (e) => {
+        const rect = btn.getBoundingClientRect();
+        const relX = e.clientX - rect.left - rect.width / 2;
+        const relY = e.clientY - rect.top - rect.height / 2;
+        btn.style.transform = `translate(${relX * 0.25}px, ${relY * 0.35}px)`;
+      });
+      btn.addEventListener('mouseleave', () => { btn.style.transform = ''; });
+    });
+
+    // 카드 틸트: 마우스 위치에 따라 카드가 입체적으로 살짝 기울어짐
+    document.querySelectorAll('.card').forEach((card) => {
+      card.addEventListener('mousemove', (e) => {
+        const rect = card.getBoundingClientRect();
+        const px = (e.clientX - rect.left) / rect.width - 0.5;
+        const py = (e.clientY - rect.top) / rect.height - 0.5;
+        card.style.transform = `perspective(600px) rotateX(${-py * 6}deg) rotateY(${px * 6}deg) translateY(-4px)`;
+      });
+      card.addEventListener('mouseleave', () => { card.style.transform = ''; });
+    });
+  }
 });

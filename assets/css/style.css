@@ -476,6 +476,39 @@ button.news-item.is-button[aria-expanded="true"] .arrow { transform: rotate(90de
 .toast.toast--error { color: #92140c; border-color: rgba(217,45,32,.35); background: rgba(255,241,240,.85); }
 .toast.toast--success { color: #0d5c48; border-color: rgba(22,160,133,.35); background: rgba(236,253,248,.85); }
 
+/* ---------- 마퀴 티커 ---------- */
+.ticker {
+  overflow: hidden; background: var(--ink-900); border-bottom: 1px solid rgba(255,255,255,.08);
+  white-space: nowrap;
+}
+.ticker-track {
+  display: inline-flex; width: max-content;
+  animation: ticker-scroll 32s linear infinite;
+}
+.ticker-track span {
+  display: inline-flex; align-items: center; padding: 9px 0;
+  font-size: 12.5px; font-weight: 700; letter-spacing: .03em; color: rgba(255,255,255,.72);
+}
+.ticker-track span::after { content: "•"; margin: 0 20px; color: var(--gold); }
+@keyframes ticker-scroll {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ticker-track { animation: none; }
+}
+
+/* ---------- 스크롤 연동 텍스트 리빌 ---------- */
+.scroll-reveal-text .word { opacity: .22; transition: opacity .25s linear; }
+.scroll-reveal-text .word.is-lit { opacity: 1; }
+@media (prefers-reduced-motion: reduce) {
+  .scroll-reveal-text .word { opacity: 1; transition: none; }
+}
+
+/* ---------- 매그네틱 버튼 / 카드 틸트 ---------- */
+.btn { will-change: transform; }
+.card { transform-style: preserve-3d; will-change: transform; }
+
 /* ---------- 반응형 ---------- */
 .site-header.is-scrolled { box-shadow: var(--shadow-sm); }
 
