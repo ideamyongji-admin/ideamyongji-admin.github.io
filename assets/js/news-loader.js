@@ -72,8 +72,8 @@ function galleryItemHTML(item, index) {
       <span class="gallery-media">
         <img src="${escapeHtml(images[0] || '')}" alt="${escapeHtml(item.caption || item.date)}" loading="lazy">
         <span class="gallery-overlay">
-          <span class="date">${escapeHtml(item.date)}</span>
-          ${item.caption ? `<span class="caption">${escapeHtml(item.caption)}</span>` : ''}
+          <span class="tag tag--date">${escapeHtml(item.date)}</span>
+          ${item.caption ? `<span class="tag tag--caption">${escapeHtml(item.caption)}</span>` : ''}
         </span>
       </span>
     </button>`;
