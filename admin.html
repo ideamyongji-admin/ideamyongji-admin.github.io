@@ -209,10 +209,11 @@
     <div class="tab-panel" data-panel="gallery" hidden>
       <div class="grid grid--2">
         <div class="card">
-          <h3 style="font-size:16px; margin-bottom:16px;">새 게시물 등록</h3>
-          <p class="field hint" style="margin-top:-8px; margin-bottom:16px;">사진을 여러 장 선택하면 사이트에서 캐러셀(넘겨보기)로 표시됩니다. 이미지 파일만 업로드할 수 있으며, 장당 최대 100MB까지 가능합니다.</p>
+          <h3 id="gallery-form-title" style="font-size:16px; margin-bottom:16px;">새 게시물 등록</h3>
+          <p class="field hint" style="margin-top:-8px; margin-bottom:16px;">사진을 여러 장 선택하면 사이트에서 캐러셀(넘겨보기)로 표시됩니다. 이미지 파일만 업로드할 수 있으며, 장당 최대 100MB까지 가능합니다. 수정 모드에서는 사진을 추가로 더 올릴 수도 있습니다.</p>
           <div id="gallery-status" class="status-msg"></div>
           <form id="gallery-form">
+            <input type="hidden" id="gallery-edit-index" value="">
             <div class="field">
               <label for="gallery-date">날짜</label>
               <input type="date" id="gallery-date" required>
@@ -222,10 +223,13 @@
               <input type="text" id="gallery-caption" placeholder="예: 2026 IDEA 미니 해커톤 현장">
             </div>
             <div class="field">
-              <label for="gallery-image">사진 파일 <span class="hint">(여러 장 선택 가능)</span></label>
-              <input type="file" id="gallery-image" accept="image/*" multiple required>
+              <label for="gallery-image">사진 파일 <span class="hint" id="gallery-image-hint">(여러 장 선택 가능)</span></label>
+              <input type="file" id="gallery-image" accept="image/*" multiple>
             </div>
-            <button type="submit" class="btn btn--primary">게시하기</button>
+            <div style="display:flex; gap:10px;">
+              <button type="submit" id="gallery-submit-btn" class="btn btn--primary">게시하기</button>
+              <button type="button" id="gallery-cancel-edit" class="btn btn--outline" hidden>수정 취소</button>
+            </div>
           </form>
         </div>
         <div class="card">

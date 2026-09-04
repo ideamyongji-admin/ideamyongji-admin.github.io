@@ -284,6 +284,7 @@ async function renderGalleryList() {
           <div class="meta">${item.date} · 사진 ${count}장</div>
         </div>
         <div style="display:flex; gap:8px; flex-shrink:0;">
+          <button type="button" class="btn btn--outline btn--sm" data-edit-gallery="${i}">수정</button>
           <label class="btn btn--outline btn--sm" style="cursor:pointer; margin-bottom:0;">
             <span>사진 추가</span>
             <input type="file" accept="image/*" multiple data-add-gallery-input="${i}" style="display:none;">
@@ -310,6 +311,30 @@ async function addGalleryPhotos(date, caption, files, onProgress) {
   const { sha, content } = await getJSONFile('data/gallery.json');
   content.unshift({ date, caption: caption || '', images });
   await putJSONFile('data/gallery.json', content, sha, `포토갤러리 등록: ${caption || date} (${images.length}장)`);
+}
+
+async function getGalleryPost(index) {
+  const { content } = await getJSONFile('data/gallery.json');
+  return content[index];
+}
+
+// 날짜·설명을 수정합니다. 이 화면에서 사진을 추가로 선택하면 기존 사진 뒤에 이어서
+// 업로드·병합합니다(사진 자체를 빼거나 순서를 바꾸는 기능은 없음).
+async function updateGalleryPost(index, date, caption, files, onProgress) {
+  const uploaded = [];
+  if (files && files.length) {
+    for (const file of files) {
+      const path = await uploadFileAndGetPath(file, 'assets/images/gallery', `포토갤러리 사진 추가: ${caption || date}`);
+      uploaded.push(path);
+      if (onProgress) onProgress(uploaded.length, files.length);
+    }
+  }
+  const { sha, content } = await getJSONFile('data/gallery.json');
+  const item = content[index];
+  if (!item) throw new Error('게시물을 찾을 수 없습니다. 목록을 새로고침해 주세요.');
+  const existingImages = Array.isArray(item.images) ? item.images : (item.image ? [item.image] : []);
+  content[index] = { date, caption: caption || '', images: [...existingImages, ...uploaded] };
+  await putJSONFile('data/gallery.json', content, sha, `포토갤러리 수정: ${caption || date}`);
 }
 
 // 이미 등록된 게시물에 사진을 추가로 업로드합니다. 파일 선택 창은 한 폴더 안에서만
@@ -520,42 +545,92 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   const galleryForm = $('#gallery-form');
   const galleryStatus = $('#gallery-status');
+  const galleryFormTitle = $('#gallery-form-title');
+  const gallerySubmitBtn = $('#gallery-submit-btn');
+  const galleryCancelBtn = $('#gallery-cancel-edit');
+  const galleryImageHint = $('#gallery-image-hint');
+  const galleryEditIndex = $('#gallery-edit-index');
+
+  function resetGalleryFormToAddMode() {
+    galleryForm.reset();
+    galleryEditIndex.value = '';
+    galleryFormTitle.textContent = '새 게시물 등록';
+    gallerySubmitBtn.textContent = '게시하기';
+    gallerySubmitBtn.disabled = false;
+    galleryCancelBtn.hidden = true;
+    galleryImageHint.textContent = '(여러 장 선택 가능)';
+  }
+
+  async function enterGalleryEditMode(index) {
+    hideStatus(galleryStatus);
+    const item = await getGalleryPost(index);
+    if (!item) return;
+    galleryEditIndex.value = String(index);
+    $('#gallery-date').value = dotDateToInputValue(item.date);
+    $('#gallery-caption').value = item.caption || '';
+    $('#gallery-image').value = '';
+    galleryFormTitle.textContent = '게시물 수정';
+    gallerySubmitBtn.textContent = '수정하기';
+    galleryCancelBtn.hidden = false;
+    galleryImageHint.textContent = '(선택, 새로 고르면 기존 사진 뒤에 이어서 추가됩니다)';
+    galleryForm.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  galleryCancelBtn.addEventListener('click', () => resetGalleryFormToAddMode());
+
   galleryForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     hideStatus(galleryStatus);
     const date = $('#gallery-date').value.replace(/-/g, '.');
     const caption = $('#gallery-caption').value.trim();
     const files = [...$('#gallery-image').files];
-    if (!date || !files.length) { showStatus(galleryStatus, '날짜와 사진 파일을 선택하세요.', 'error'); return; }
+    const editIndex = galleryEditIndex.value;
+    const isEdit = editIndex !== '';
+    if (!date || (!isEdit && !files.length)) {
+      showStatus(galleryStatus, isEdit ? '날짜를 입력하세요.' : '날짜와 사진 파일을 선택하세요.', 'error');
+      return;
+    }
     const oversized = files.find((f) => f.size > MAX_UPLOAD_BYTES);
     if (oversized) {
       showStatus(galleryStatus, `"${oversized.name}" 파일 용량이 너무 큽니다. GitHub API 제한으로 장당 ${Math.floor(MAX_UPLOAD_BYTES / 1024 / 1024)}MB 이하만 업로드할 수 있습니다.`, 'error');
       return;
     }
-    const btn = galleryForm.querySelector('button[type="submit"]');
+    const btn = gallerySubmitBtn;
     btn.disabled = true;
-    btn.textContent = files.length > 1 ? `업로드 중… (1/${files.length})` : '업로드 중…';
+    btn.textContent = files.length > 1 ? `업로드 중… (1/${files.length})` : (isEdit ? '수정 중…' : '업로드 중…');
     try {
-      await addGalleryPhotos(date, caption, files, (done, total) => {
-        btn.textContent = `업로드 중… (${done}/${total})`;
-      });
-      showStatus(galleryStatus, `사진 ${files.length}장이 등록되었습니다. 30~60초 후 사이트에 반영됩니다.`, 'success');
-      galleryForm.reset();
+      if (isEdit) {
+        await updateGalleryPost(Number(editIndex), date, caption, files, (done, total) => {
+          btn.textContent = `업로드 중… (${done}/${total})`;
+        });
+        showStatus(galleryStatus, '게시물이 수정되었습니다. 30~60초 후 사이트에 반영됩니다.', 'success');
+      } else {
+        await addGalleryPhotos(date, caption, files, (done, total) => {
+          btn.textContent = `업로드 중… (${done}/${total})`;
+        });
+        showStatus(galleryStatus, `사진 ${files.length}장이 등록되었습니다. 30~60초 후 사이트에 반영됩니다.`, 'success');
+      }
+      resetGalleryFormToAddMode();
       await renderGalleryList();
     } catch (err) {
       showStatus(galleryStatus, err.message, 'error');
-    } finally {
-      btn.disabled = false; btn.textContent = '게시하기';
+      btn.disabled = false; btn.textContent = isEdit ? '수정하기' : '게시하기';
     }
   });
 
   $('#gallery-admin-list').addEventListener('click', async (e) => {
+    const editBtn = e.target.closest('[data-edit-gallery]');
+    if (editBtn) {
+      await enterGalleryEditMode(Number(editBtn.dataset.editGallery));
+      return;
+    }
     const btn = e.target.closest('[data-delete-gallery]');
     if (!btn) return;
     if (!confirm('이 사진을 삭제할까요?')) return;
     btn.disabled = true;
     try {
       await deleteGalleryPhoto(Number(btn.dataset.deleteGallery));
+      if (galleryEditIndex.value === String(btn.dataset.deleteGallery)) resetGalleryFormToAddMode();
       await renderGalleryList();
     } catch (err) {
       alert(err.message);
