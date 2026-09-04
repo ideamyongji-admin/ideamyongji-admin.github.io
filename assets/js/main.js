@@ -41,6 +41,14 @@ document.addEventListener('DOMContentLoaded', () => {
         history.replaceState(null, '', '#' + link.dataset.tab);
       });
     });
+
+    // 헤더 드롭다운처럼 이 페이지 안에서 "news.html#gallery" 같은 해시 링크를 누르는 경우,
+    // 이미 같은 페이지에 있으면 브라우저가 페이지를 다시 불러오지 않고 해시만 바꾸므로
+    // 위 클릭 리스너가 걸리지 않습니다. hashchange를 별도로 감지해 탭을 전환합니다.
+    window.addEventListener('hashchange', () => {
+      const name = location.hash.replace('#', '');
+      if (panelNames.includes(name)) activateTab(name);
+    });
   }
 
   // 스크롤 시 헤더 그림자
